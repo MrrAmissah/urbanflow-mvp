@@ -3,21 +3,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
+  ArrowRight,
   BriefcaseBusiness,
   Camera,
   Check,
   CheckCircle2,
   ClipboardList,
+  Cpu,
+  Database,
   Download,
   FileStack,
   Filter,
   FlaskConical,
   ImageOff,
+  ListChecks,
   MapPin,
   Plus,
   RefreshCw,
+  ScanSearch,
   ShieldAlert,
   SlidersHorizontal,
+  Sparkles,
+  UploadCloud,
   XCircle,
 } from 'lucide-react';
 import UrbanflowLogo from '@/components/UrbanflowLogo';
@@ -938,58 +945,132 @@ export default function GutterClassifier() {
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 py-6">
-      <div className="mb-6 text-center">
-        <div className="mb-2 flex items-center justify-center gap-3">
-          <UrbanflowLogo className="h-8 w-8 sm:h-10 sm:w-10" />
-          <h1 className="text-3xl font-bold text-slate-900">Team Urbanflow</h1>
+      <header className="mb-6 border-b border-slate-200 pb-4 text-center">
+        <div className="flex items-center justify-center gap-2.5">
+          <UrbanflowLogo className="h-9 w-9 sm:h-10 sm:w-10" />
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Team Urbanflow</h1>
         </div>
-        <div className="inline-block px-4 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-semibold mb-3">
+        <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+          <Sparkles className="h-3.5 w-3.5" />
           AI-powered gutter inspection
         </div>
-        <p className="text-base text-slate-600 max-w-3xl mx-auto">
-          Upload one image for a quick check or process a batch of drone gutter photos while the current browser model stays stable.
+        <p className="mx-auto mt-3 max-w-2xl text-sm text-slate-600">
+          Upload one image for a quick check or process a batch of drone gutter photos.
         </p>
-      </div>
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-2 text-xs font-medium text-slate-500">
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2.5 py-1 text-slate-600">
+            <UploadCloud className="h-3.5 w-3.5 text-blue-500" />
+            Upload
+          </span>
+          <ArrowRight className="hidden h-3 w-3 text-slate-300 sm:inline" />
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2.5 py-1 text-slate-600">
+            <ScanSearch className="h-3.5 w-3.5 text-blue-500" />
+            Analyze
+          </span>
+          <ArrowRight className="hidden h-3 w-3 text-slate-300 sm:inline" />
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2.5 py-1 text-slate-600">
+            <ListChecks className="h-3.5 w-3.5 text-blue-500" />
+            Review
+          </span>
+          <ArrowRight className="hidden h-3 w-3 text-slate-300 sm:inline" />
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2.5 py-1 text-slate-600">
+            <Download className="h-3.5 w-3.5 text-blue-500" />
+            Export
+          </span>
+        </div>
+      </header>
 
-      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase text-slate-500">Model status</p>
-          <div className="mt-2 flex items-center gap-2">
-            {modelLoading ? (
-              <div className="h-2.5 w-2.5 rounded-full bg-yellow-500 animate-pulse"></div>
-            ) : modelError ? (
-              <AlertCircle className="h-4 w-4 text-red-500" />
-            ) : (
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
+      <div className="mb-8 grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Model status</p>
+            <div className="mt-2 flex items-center gap-2">
+              {modelLoading ? (
+                <span className="h-2.5 w-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+              ) : modelError ? (
+                <AlertCircle className="h-4 w-4 text-red-500" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
+              )}
+              <p className="truncate text-lg font-bold text-slate-900">
+                {modelLoading ? 'Loading model' : modelError ? 'Model issue' : 'Ready'}
+              </p>
+            </div>
+            {modelLoadTime !== null && !modelError && (
+              <p className="mt-1 text-xs text-slate-500">Prepared in {modelLoadTime.toFixed(1)}s</p>
             )}
-            <p className="text-sm font-semibold text-slate-900">
-              {modelLoading ? 'Loading model' : modelError ? 'Model issue' : 'Ready'}
+          </div>
+          <span
+            className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${
+              modelError ? 'bg-red-50 text-red-600' : modelLoading ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-600'
+            }`}
+          >
+            <Cpu className="h-4 w-4" />
+          </span>
+        </div>
+        <div className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Active job</p>
+            <p className="mt-2 truncate text-lg font-bold text-slate-900">{selectedJob?.title ?? 'No active job'}</p>
+            <p className="mt-1 truncate text-xs text-slate-500">{selectedJob?.locationName ?? 'Records can still be ungrouped'}</p>
+          </div>
+          <span
+            className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${
+              selectedJob ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'
+            }`}
+          >
+            <BriefcaseBusiness className="h-4 w-4" />
+          </span>
+        </div>
+        <div className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total records</p>
+            <p className="mt-2 font-mono text-3xl font-bold text-slate-900">{records.length}</p>
+            <p className="mt-1 text-xs text-slate-500">{records.length === 1 ? 'inspection saved' : 'inspections saved'}</p>
+          </div>
+          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+            <Database className="h-4 w-4" />
+          </span>
+        </div>
+        <div
+          className={`flex items-start justify-between gap-3 rounded-xl border p-4 shadow-sm ${
+            needsReviewCount > 0 ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-white'
+          }`}
+        >
+          <div className="min-w-0">
+            <p
+              className={`text-xs font-semibold uppercase tracking-wide ${
+                needsReviewCount > 0 ? 'text-amber-700' : 'text-slate-500'
+              }`}
+            >
+              Needs review
+            </p>
+            <p
+              className={`mt-2 font-mono text-3xl font-bold ${needsReviewCount > 0 ? 'text-amber-700' : 'text-slate-900'}`}
+            >
+              {needsReviewCount}
+            </p>
+            <p className={`mt-1 text-xs ${needsReviewCount > 0 ? 'text-amber-600' : 'text-slate-500'}`}>
+              {needsReviewCount > 0 ? 'awaiting decision' : 'all clear'}
             </p>
           </div>
-          {modelLoadTime !== null && !modelError && (
-            <p className="mt-1 text-xs text-slate-500">Prepared in {modelLoadTime.toFixed(1)}s</p>
-          )}
-        </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase text-slate-500">Active job</p>
-          <p className="mt-2 truncate text-sm font-semibold text-slate-900">{selectedJob?.title ?? 'No active job'}</p>
-          <p className="mt-1 truncate text-xs text-slate-500">{selectedJob?.locationName ?? 'Records can still be ungrouped'}</p>
-        </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase text-slate-500">Total records</p>
-          <p className="mt-2 font-mono text-2xl font-bold text-slate-900">{records.length}</p>
-        </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase text-slate-500">Needs review</p>
-          <p className="mt-2 font-mono text-2xl font-bold text-blue-700">{needsReviewCount}</p>
+          <span
+            className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${
+              needsReviewCount > 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-400'
+            }`}
+          >
+            <ShieldAlert className="h-4 w-4" />
+          </span>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(360px,0.9fr)_minmax(420px,1.1fr)]">
-          <div className="order-1 rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:col-start-1">
-            <div className="mb-4 flex items-center justify-between gap-4">
+          <div className="order-1 rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:col-start-1">
+            <div className="mb-4 flex items-center gap-3 border-b border-slate-100 pb-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                <BriefcaseBusiness className="h-5 w-5" />
+              </span>
               <h2 className="text-lg font-semibold text-slate-900">Inspection Job</h2>
-              <BriefcaseBusiness className="w-5 h-5 text-blue-600" />
             </div>
 
             {selectedJob ? (
@@ -1062,12 +1143,17 @@ export default function GutterClassifier() {
             </div>
           </div>
 
-          <div className="order-2 rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:col-start-1">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Upload Images</h2>
+          <div className="order-2 rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:col-start-1">
+            <div className="mb-4 flex items-center gap-3 border-b border-slate-100 pb-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                <UploadCloud className="h-5 w-5" />
+              </span>
+              <h2 className="text-lg font-semibold text-slate-900">Upload Images</h2>
+            </div>
             <div
               onDragOver={handleDragOver}
               onDrop={handleDrop}
-              className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors"
+              className="group rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/60 p-8 text-center transition-colors hover:border-blue-400 hover:bg-blue-50/50"
             >
               <input
                 ref={fileInputRef}
@@ -1078,19 +1164,29 @@ export default function GutterClassifier() {
                 className="hidden"
                 id="file-upload"
               />
-              <label htmlFor="file-upload" className="cursor-pointer">
-                <Camera className="w-12 h-12 mx-auto mb-2 text-blue-600" />
-                <p className="text-slate-700 font-medium mb-1">Drag and drop images here</p>
-                <p className="text-sm text-slate-500 mb-4">or click to select one or many files</p>
+              <label htmlFor="file-upload" className="flex cursor-pointer flex-col items-center">
+                <span className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-blue-100 text-blue-600 transition-transform group-hover:scale-105">
+                  <UploadCloud className="h-7 w-7" />
+                </span>
+                <p className="text-base font-semibold text-slate-800">Drop drone images here</p>
+                <p className="mt-1 text-sm text-slate-500">JPG, PNG, WebP · single or batch upload</p>
+                <span className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm">
+                  Browse files
+                </span>
               </label>
             </div>
 
             {selectedFiles.length > 0 && (
-              <div className="mt-4 p-4 bg-slate-50 rounded-lg">
-                <p className="text-sm text-slate-600">
-                  <strong>Selected:</strong> {selectedFiles.length} image{selectedFiles.length === 1 ? '' : 's'}
-                </p>
-                <p className="text-xs text-slate-500 truncate">{selectedFile?.name}</p>
+              <div className="mt-4 flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
+                  <FileStack className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-blue-900">
+                    {selectedFiles.length} image{selectedFiles.length === 1 ? '' : 's'} selected
+                  </p>
+                  <p className="truncate text-xs text-blue-700">{selectedFile?.name}</p>
+                </div>
               </div>
             )}
 
@@ -1130,14 +1226,16 @@ export default function GutterClassifier() {
             </div>
           </div>
 
-          <div className="order-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:order-3 lg:col-start-1">
-            <div className="flex items-center justify-between gap-4 mb-4">
+          <div className="order-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:order-3 lg:col-start-1">
+            <div className="mb-4 flex items-center gap-3 border-b border-slate-100 pb-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                <SlidersHorizontal className="h-5 w-5" />
+              </span>
               <h2 className="text-lg font-semibold text-slate-900">Inspection Rules</h2>
-              <SlidersHorizontal className="w-5 h-5 text-blue-600" />
             </div>
             <label className="flex items-center justify-between text-sm font-semibold text-slate-700" htmlFor="threshold">
               Confidence threshold
-              <span className="font-mono text-slate-900">{threshold}%</span>
+              <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-sm font-bold text-slate-900">{threshold}%</span>
             </label>
             <input
               id="threshold"
@@ -1153,18 +1251,23 @@ export default function GutterClassifier() {
             </p>
           </div>
 
-          <div className="order-3 rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:order-1 lg:col-start-2 lg:row-start-1">
-            <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">Image Preview</h2>
+          <div className="order-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:order-1 lg:col-start-2 lg:row-start-1">
+            <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                  <Camera className="h-5 w-5" />
+                </span>
+                <h2 className="text-lg font-semibold text-slate-900">Image Preview</h2>
+              </div>
               {selectedFiles.length > 1 && (
-                <span className="text-sm font-semibold text-blue-700">
-                  {selectedFiles.length} images in batch
+                <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                  {selectedFiles.length} in batch
                 </span>
               )}
             </div>
 
             {imagePreview ? (
-              <div className="bg-slate-100 rounded-lg overflow-hidden">
+              <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   ref={imageRef}
@@ -1174,10 +1277,12 @@ export default function GutterClassifier() {
                 />
               </div>
             ) : (
-              <div className="flex min-h-72 flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-                <Camera className="mb-3 h-10 w-10 text-blue-500" />
+              <div className="flex min-h-72 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+                <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white text-blue-500 shadow-sm ring-1 ring-slate-100">
+                  <ImageOff className="h-7 w-7" />
+                </span>
                 <h3 className="text-base font-semibold text-slate-900">No image selected</h3>
-                <p className="mt-2 max-w-sm text-sm text-slate-500">
+                <p className="mt-1.5 max-w-sm text-sm text-slate-500">
                   Upload a drone gutter image to preview it here before analysis.
                 </p>
               </div>
@@ -1236,10 +1341,15 @@ export default function GutterClassifier() {
             )}
           </div>
 
-          <div className="order-5 rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:order-2 lg:col-start-2">
+          <div className="order-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:order-2 lg:col-start-2">
             {predictions ? (
               <>
-              <h2 className="text-lg font-semibold text-slate-900 mb-6">Analysis Results</h2>
+              <div className="mb-5 flex items-center gap-3 border-b border-slate-100 pb-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                  <ScanSearch className="h-5 w-5" />
+                </span>
+                <h2 className="text-lg font-semibold text-slate-900">Analysis Results</h2>
+              </div>
               <div className={`rounded-lg p-6 mb-6 ${getVerdictToneClasses(verdictInfo.tone)}`}>
                 <div className="flex items-start gap-3">
                   {verdict === 'out-of-context' ? (
@@ -1330,24 +1440,35 @@ export default function GutterClassifier() {
               )}
               </>
             ) : (
-              <div className="flex min-h-64 flex-col justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-                <ShieldAlert className="mx-auto mb-3 h-10 w-10 text-blue-500" />
+              <div className="flex min-h-72 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+                <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white text-blue-500 shadow-sm ring-1 ring-slate-100">
+                  <ScanSearch className="h-7 w-7" />
+                </span>
                 <h2 className="text-lg font-semibold text-slate-900">Awaiting analysis</h2>
-                <p className="mt-2 text-sm text-slate-500">
+                <p className="mt-1.5 max-w-sm text-sm text-slate-500">
                   The AI verdict, confidence score, and class probabilities will appear here after an image is processed.
                 </p>
               </div>
             )}
           </div>
 
-          <div className="order-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:order-3 lg:col-start-2">
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold text-slate-900">
-                {batchProgress.total > 0 ? 'Batch Progress' : 'No batch running'}
-              </h2>
-              {batchProgress.total === 0 && (
-                <p className="mt-1 text-sm text-slate-500">Upload multiple images to process a drone inspection batch.</p>
-              )}
+          <div className="order-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:order-3 lg:col-start-2">
+            <div className="mb-4 flex items-center gap-3 border-b border-slate-100 pb-3">
+              <span
+                className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${
+                  batchProgress.total > 0 ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'
+                }`}
+              >
+                <FileStack className="h-5 w-5" />
+              </span>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  {batchProgress.total > 0 ? 'Batch Progress' : 'No batch running'}
+                </h2>
+                {batchProgress.total === 0 && (
+                  <p className="text-xs text-slate-500">Upload multiple images to process a drone inspection batch.</p>
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
               <div className="bg-slate-50 rounded-lg p-3">
@@ -1396,11 +1517,16 @@ export default function GutterClassifier() {
           )}
       </div>
 
-      <section className="mt-12 bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
+      <section className="mt-12 bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between mb-5">
-          <div>
-            <h3 className="text-lg font-semibold text-slate-900">Inspection Jobs</h3>
-            <p className="text-sm text-slate-500">Group a drone inspection session into one job with many image records.</p>
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+              <BriefcaseBusiness className="h-5 w-5" />
+            </span>
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">Inspection Jobs</h3>
+              <p className="text-sm text-slate-500">Group a drone inspection session into one job with many image records.</p>
+            </div>
           </div>
           {selectedJob && (
             <button
@@ -1414,8 +1540,12 @@ export default function GutterClassifier() {
         </div>
 
         {jobSummaries.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-            <p className="text-sm text-slate-600">No inspection jobs created yet.</p>
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-center">
+            <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-white text-blue-500 shadow-sm ring-1 ring-slate-100">
+              <BriefcaseBusiness className="h-5 w-5" />
+            </span>
+            <p className="text-sm font-semibold text-slate-700">No inspection jobs yet</p>
+            <p className="mt-1 text-xs text-slate-500">Create a job above to group a drone inspection session.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -1465,9 +1595,13 @@ export default function GutterClassifier() {
         )}
       </section>
 
-      <section className="mt-8 bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
+      <section className="mt-8 bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between mb-5">
-          <div>
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+              <ClipboardList className="h-5 w-5" />
+            </span>
+            <div>
             <h3 className="text-lg font-semibold text-slate-900">Inspection Review Queue</h3>
             <p className="text-sm text-slate-500">{needsReviewCount} image(s) currently need review</p>
             <p className="mt-1 text-xs text-slate-500">
@@ -1477,6 +1611,7 @@ export default function GutterClassifier() {
                   ? 'Supabase persistence connected.'
                   : 'Local-only queue until Supabase env vars and tables are ready.'}
             </p>
+            </div>
           </div>
           <button
             type="button"
@@ -1489,8 +1624,12 @@ export default function GutterClassifier() {
         </div>
 
         {reviewQueue.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-            <p className="text-sm text-slate-600">No images currently need review.</p>
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-center">
+            <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-white text-green-500 shadow-sm ring-1 ring-slate-100">
+              <CheckCircle2 className="h-5 w-5" />
+            </span>
+            <p className="text-sm font-semibold text-slate-700">Review queue is clear</p>
+            <p className="mt-1 text-xs text-slate-500">Flagged inspections will appear here for approval or correction.</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -1541,14 +1680,19 @@ export default function GutterClassifier() {
         )}
       </section>
 
-      <section className="mt-8 bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
+      <section className="mt-8 bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-slate-900">Inspection Records Dashboard</h3>
-            <p className="text-sm text-slate-500">
-              {filteredRecords.length} of {jobScopedRecords.length} record(s) shown
-              {selectedJob ? ` for ${selectedJob.title}` : ''}
-            </p>
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+              <Database className="h-5 w-5" />
+            </span>
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">Inspection Records Dashboard</h3>
+              <p className="text-sm text-slate-500">
+                {filteredRecords.length} of {jobScopedRecords.length} record(s) shown
+                {selectedJob ? ` for ${selectedJob.title}` : ''}
+              </p>
+            </div>
           </div>
           <button
             type="button"
@@ -1561,14 +1705,17 @@ export default function GutterClassifier() {
           </button>
         </div>
 
-        <div className="mt-5 flex flex-wrap gap-2">
-          <Filter className="w-5 h-5 text-blue-600 mt-2" />
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 pr-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <Filter className="h-4 w-4 text-blue-600" />
+            Filter
+          </span>
           {filters.map((filter) => (
             <button
               key={filter.key}
               type="button"
               onClick={() => setActiveFilter(filter.key)}
-              className={`rounded-full border px-3 py-2 text-sm font-semibold transition-colors ${
+              className={`rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
                 activeFilter === filter.key
                   ? 'border-blue-600 bg-blue-600 text-white'
                   : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
