@@ -2,18 +2,19 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 let supabaseAdmin: SupabaseClient | null = null;
 
-export function hasSupabaseServerConfig() {
+function getSupabaseUrl() {
+  const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!rawUrl) return null;
+
   try {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    return Boolean(
-      url &&
-        (url.startsWith('http://') || url.startsWith('https://')) &&
-        new URL(url) &&
-        process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
+    return new URL(rawUrl).origin;
   } catch {
-    return false;
+    return null;
   }
+}
+
+export function hasSupabaseServerConfig() {
+  return Boolean(getSupabaseUrl() && process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
 export function getSupabaseAdmin() {
@@ -23,7 +24,7 @@ export function getSupabaseAdmin() {
 
   if (!supabaseAdmin) {
     supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      getSupabaseUrl()!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       {
         auth: {
