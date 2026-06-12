@@ -20,6 +20,7 @@ import {
   SlidersHorizontal,
   XCircle,
 } from 'lucide-react';
+import UrbanflowLogo from '@/components/UrbanflowLogo';
 import type {
   CreateInspectionPayload,
   CreateInspectionJobPayload,
@@ -936,71 +937,56 @@ export default function GutterClassifier() {
   };
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-4 py-8">
-      <div className="mb-12 text-center">
-        <h1 className="text-4xl font-bold text-slate-900 mb-2">Team Urbanflow</h1>
-        <div className="inline-block px-4 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-semibold mb-4">
+    <div className="w-full max-w-7xl mx-auto px-4 py-6">
+      <div className="mb-6 text-center">
+        <div className="mb-2 flex items-center justify-center gap-3">
+          <UrbanflowLogo className="h-8 w-8 sm:h-10 sm:w-10" />
+          <h1 className="text-3xl font-bold text-slate-900">Team Urbanflow</h1>
+        </div>
+        <div className="inline-block px-4 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-semibold mb-3">
           AI-powered gutter inspection
         </div>
-        <p className="text-lg text-slate-600 max-w-3xl mx-auto">
+        <p className="text-base text-slate-600 max-w-3xl mx-auto">
           Upload one image for a quick check or process a batch of drone gutter photos while the current browser model stays stable.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[420px_minmax(0,1fr)] gap-8">
-        <div className="space-y-6">
-          <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Model Status</h2>
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase text-slate-500">Model status</p>
+          <div className="mt-2 flex items-center gap-2">
             {modelLoading ? (
-              <div className="flex items-center space-x-3">
-                <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
-                <span className="text-slate-600">Loading AI model...</span>
-              </div>
+              <div className="h-2.5 w-2.5 rounded-full bg-yellow-500 animate-pulse"></div>
             ) : modelError ? (
-              <div className="flex items-start space-x-3">
-                <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-red-700 font-semibold">Model Error</p>
-                  <p className="text-sm text-red-600">{modelError}</p>
-                </div>
-              </div>
+              <AlertCircle className="h-4 w-4 text-red-500" />
             ) : (
-              <div className="flex items-start space-x-3">
-                <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-slate-700 font-semibold">Model ready for analysis</p>
-                  {modelLoadTime !== null && (
-                    <p className="text-xs text-slate-500">Prepared in {modelLoadTime.toFixed(1)}s on this device.</p>
-                  )}
-                </div>
-              </div>
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
             )}
-          </div>
-
-          <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
-            <div className="flex items-center justify-between gap-4 mb-4">
-              <h2 className="text-lg font-semibold text-slate-900">Inspection Rules</h2>
-              <SlidersHorizontal className="w-5 h-5 text-blue-600" />
-            </div>
-            <label className="flex items-center justify-between text-sm font-semibold text-slate-700" htmlFor="threshold">
-              Confidence threshold
-              <span className="font-mono text-slate-900">{threshold}%</span>
-            </label>
-            <input
-              id="threshold"
-              type="range"
-              min="50"
-              max="95"
-              value={threshold}
-              onChange={(event) => setThreshold(Number(event.target.value))}
-              className="mt-3 w-full accent-blue-600"
-            />
-            <p className="mt-3 text-xs text-slate-500">
-              Low confidence, poor quality, and out-of-context classes are routed to review.
+            <p className="text-sm font-semibold text-slate-900">
+              {modelLoading ? 'Loading model' : modelError ? 'Model issue' : 'Ready'}
             </p>
           </div>
+          {modelLoadTime !== null && !modelError && (
+            <p className="mt-1 text-xs text-slate-500">Prepared in {modelLoadTime.toFixed(1)}s</p>
+          )}
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase text-slate-500">Active job</p>
+          <p className="mt-2 truncate text-sm font-semibold text-slate-900">{selectedJob?.title ?? 'No active job'}</p>
+          <p className="mt-1 truncate text-xs text-slate-500">{selectedJob?.locationName ?? 'Records can still be ungrouped'}</p>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase text-slate-500">Total records</p>
+          <p className="mt-2 font-mono text-2xl font-bold text-slate-900">{records.length}</p>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase text-slate-500">Needs review</p>
+          <p className="mt-2 font-mono text-2xl font-bold text-blue-700">{needsReviewCount}</p>
+        </div>
+      </div>
 
-          <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(360px,0.9fr)_minmax(420px,1.1fr)]">
+          <div className="order-1 rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:col-start-1">
             <div className="mb-4 flex items-center justify-between gap-4">
               <h2 className="text-lg font-semibold text-slate-900">Inspection Job</h2>
               <BriefcaseBusiness className="w-5 h-5 text-blue-600" />
@@ -1076,7 +1062,7 @@ export default function GutterClassifier() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
+          <div className="order-2 rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:col-start-1">
             <h2 className="text-lg font-semibold text-slate-900 mb-4">Upload Images</h2>
             <div
               onDragOver={handleDragOver}
@@ -1144,117 +1130,116 @@ export default function GutterClassifier() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Batch Progress</h2>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="bg-slate-50 rounded-lg p-3">
-                <p className="text-slate-500">Total</p>
-                <p className="font-mono text-xl font-bold text-slate-900">{batchProgress.total}</p>
-              </div>
-              <div className="bg-green-50 rounded-lg p-3">
-                <p className="text-green-700">Processed</p>
-                <p className="font-mono text-xl font-bold text-green-800">{batchProgress.processed}</p>
-              </div>
-              <div className="bg-blue-50 rounded-lg p-3">
-                <p className="text-blue-700">Pending</p>
-                <p className="font-mono text-xl font-bold text-blue-800">{pendingCount}</p>
-              </div>
-              <div className="bg-red-50 rounded-lg p-3">
-                <p className="text-red-700">Failed</p>
-                <p className="font-mono text-xl font-bold text-red-800">{batchProgress.failed}</p>
-              </div>
+          <div className="order-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:order-3 lg:col-start-1">
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <h2 className="text-lg font-semibold text-slate-900">Inspection Rules</h2>
+              <SlidersHorizontal className="w-5 h-5 text-blue-600" />
             </div>
-            {batchProgress.total > 0 && (
-              <div className="mt-4 h-2 rounded-full bg-slate-100 overflow-hidden">
-                <div
-                  className="h-full bg-blue-600 transition-all"
-                  style={{
-                    width: `${Math.round(((batchProgress.processed + batchProgress.failed) / batchProgress.total) * 100)}%`,
-                  }}
-                ></div>
-              </div>
-            )}
+            <label className="flex items-center justify-between text-sm font-semibold text-slate-700" htmlFor="threshold">
+              Confidence threshold
+              <span className="font-mono text-slate-900">{threshold}%</span>
+            </label>
+            <input
+              id="threshold"
+              type="range"
+              min="50"
+              max="95"
+              value={threshold}
+              onChange={(event) => setThreshold(Number(event.target.value))}
+              className="mt-3 w-full accent-blue-600"
+            />
+            <p className="mt-3 text-xs text-slate-500">
+              Low confidence, poor quality, and out-of-context classes are routed to review.
+            </p>
           </div>
-        </div>
 
-        <div className="space-y-6">
-          {imagePreview && (
-            <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
-              <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                <h2 className="text-lg font-semibold text-slate-900">Image Preview</h2>
-                {selectedFiles.length > 1 && (
-                  <span className="text-sm font-semibold text-blue-700">
-                    {selectedFiles.length} images in batch
-                  </span>
-                )}
-              </div>
+          <div className="order-3 rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:order-1 lg:col-start-2 lg:row-start-1">
+            <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-lg font-semibold text-slate-900">Image Preview</h2>
+              {selectedFiles.length > 1 && (
+                <span className="text-sm font-semibold text-blue-700">
+                  {selectedFiles.length} images in batch
+                </span>
+              )}
+            </div>
+
+            {imagePreview ? (
               <div className="bg-slate-100 rounded-lg overflow-hidden">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   ref={imageRef}
                   src={imagePreview}
                   alt="Selected gutter"
-                  className="w-full h-auto max-h-96 object-contain"
+                  className="w-full h-auto max-h-80 object-contain"
                 />
               </div>
+            ) : (
+              <div className="flex min-h-72 flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+                <Camera className="mb-3 h-10 w-10 text-blue-500" />
+                <h3 className="text-base font-semibold text-slate-900">No image selected</h3>
+                <p className="mt-2 max-w-sm text-sm text-slate-500">
+                  Upload a drone gutter image to preview it here before analysis.
+                </p>
+              </div>
+            )}
 
-              {batchPreviews.length > 1 && (
-                <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-slate-800">Batch preview</p>
-                    {selectedFiles.length > batchPreviews.length && (
-                      <p className="text-xs font-semibold text-slate-500">
-                        +{selectedFiles.length - batchPreviews.length} more
-                      </p>
-                    )}
-                  </div>
-                  <div className="overflow-x-auto overflow-y-hidden px-4 pb-5 pt-3">
-                    <div className="flex min-w-max items-end justify-center">
-                      {batchPreviews.map((preview, index) => {
-                        const middle = (batchPreviews.length - 1) / 2;
-                        const offset = index - middle;
-                        const rotation = offset * 5;
-                        const lift = Math.abs(offset) * 4;
+            {batchPreviews.length > 1 && (
+              <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-slate-800">Batch preview</p>
+                  {selectedFiles.length > batchPreviews.length && (
+                    <p className="text-xs font-semibold text-slate-500">
+                      +{selectedFiles.length - batchPreviews.length} more
+                    </p>
+                  )}
+                </div>
+                <div className="overflow-x-auto overflow-y-hidden px-4 pb-5 pt-3">
+                  <div className="flex min-w-max items-end justify-center">
+                    {batchPreviews.map((preview, index) => {
+                      const middle = (batchPreviews.length - 1) / 2;
+                      const offset = index - middle;
+                      const rotation = offset * 5;
+                      const lift = Math.abs(offset) * 4;
 
-                        return (
-                          <button
-                            key={preview.url}
-                            type="button"
-                            onClick={() => {
-                              setSelectedFile(selectedFiles[index]);
-                              createImagePreview(selectedFiles[index]);
-                            }}
-                            className={`relative -mx-3 h-32 w-24 flex-shrink-0 overflow-hidden rounded-lg border-2 bg-white shadow-md transition-transform hover:-translate-y-3 hover:shadow-lg ${
-                              selectedFile === selectedFiles[index] ? 'border-blue-600' : 'border-white'
-                            }`}
-                            style={{
-                              transform: `rotate(${rotation}deg) translateY(${lift}px)`,
-                              zIndex: index + 1,
-                            }}
-                            title={preview.name}
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={preview.url}
-                              alt={preview.name}
-                              className="h-full w-full object-cover"
-                            />
-                            <span className="absolute bottom-0 left-0 right-0 bg-slate-950/70 px-1.5 py-1 text-left text-[10px] font-semibold text-white">
-                              {index + 1}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
+                      return (
+                        <button
+                          key={preview.url}
+                          type="button"
+                          onClick={() => {
+                            setSelectedFile(selectedFiles[index]);
+                            createImagePreview(selectedFiles[index]);
+                          }}
+                          className={`relative -mx-3 h-32 w-24 flex-shrink-0 overflow-hidden rounded-lg border-2 bg-white shadow-md transition-transform hover:-translate-y-3 hover:shadow-lg ${
+                            selectedFile === selectedFiles[index] ? 'border-blue-600' : 'border-white'
+                          }`}
+                          style={{
+                            transform: `rotate(${rotation}deg) translateY(${lift}px)`,
+                            zIndex: index + 1,
+                          }}
+                          title={preview.name}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={preview.url}
+                            alt={preview.name}
+                            className="h-full w-full object-cover"
+                          />
+                          <span className="absolute bottom-0 left-0 right-0 bg-slate-950/70 px-1.5 py-1 text-left text-[10px] font-semibold text-white">
+                            {index + 1}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
 
-          {predictions && (
-            <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-slate-900 mb-6">Current Analysis</h2>
+          <div className="order-5 rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:order-2 lg:col-start-2">
+            {predictions ? (
+              <>
+              <h2 className="text-lg font-semibold text-slate-900 mb-6">Analysis Results</h2>
               <div className={`rounded-lg p-6 mb-6 ${getVerdictToneClasses(verdictInfo.tone)}`}>
                 <div className="flex items-start gap-3">
                   {verdict === 'out-of-context' ? (
@@ -1307,47 +1292,95 @@ export default function GutterClassifier() {
                   </div>
                 ))}
               </div>
-            </div>
-          )}
 
-          {qualityReport && (
-            <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-slate-900 mb-4">Image Quality Check</h2>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div className="bg-slate-50 rounded-lg p-3">
-                  <p className="text-slate-500">Resolution</p>
-                  <p className="font-mono text-slate-900">{qualityReport.width}x{qualityReport.height}</p>
+              {qualityReport && (
+                <div className="mt-6 border-t border-slate-100 pt-5">
+                  <h3 className="text-sm font-semibold text-slate-900 mb-3">Image Quality Check</h3>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="bg-slate-50 rounded-lg p-3">
+                      <p className="text-slate-500">Resolution</p>
+                      <p className="font-mono text-slate-900">{qualityReport.width}x{qualityReport.height}</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-lg p-3">
+                      <p className="text-slate-500">Sharpness</p>
+                      <p className="font-mono text-slate-900">{qualityReport.sharpness.toFixed(1)}</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-lg p-3">
+                      <p className="text-slate-500">Brightness</p>
+                      <p className="font-mono text-slate-900">{Math.round(qualityReport.brightness)}</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-lg p-3">
+                      <p className="text-slate-500">Issues</p>
+                      <p className="font-mono text-slate-900">{qualityReport.issues.length}</p>
+                    </div>
+                  </div>
+                  {qualityReport.issues.length > 0 ? (
+                    <ul className="mt-4 space-y-2 text-sm text-amber-800">
+                      {qualityReport.issues.map((issue) => (
+                        <li key={issue} className="flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                          <span>{issue}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-4 text-sm text-green-700">No major quality issues detected.</p>
+                  )}
                 </div>
-                <div className="bg-slate-50 rounded-lg p-3">
-                  <p className="text-slate-500">Sharpness</p>
-                  <p className="font-mono text-slate-900">{qualityReport.sharpness.toFixed(1)}</p>
-                </div>
-                <div className="bg-slate-50 rounded-lg p-3">
-                  <p className="text-slate-500">Brightness</p>
-                  <p className="font-mono text-slate-900">{Math.round(qualityReport.brightness)}</p>
-                </div>
-                <div className="bg-slate-50 rounded-lg p-3">
-                  <p className="text-slate-500">Issues</p>
-                  <p className="font-mono text-slate-900">{qualityReport.issues.length}</p>
-                </div>
+              )}
+              </>
+            ) : (
+              <div className="flex min-h-64 flex-col justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+                <ShieldAlert className="mx-auto mb-3 h-10 w-10 text-blue-500" />
+                <h2 className="text-lg font-semibold text-slate-900">Awaiting analysis</h2>
+                <p className="mt-2 text-sm text-slate-500">
+                  The AI verdict, confidence score, and class probabilities will appear here after an image is processed.
+                </p>
               </div>
-              {qualityReport.issues.length > 0 ? (
-                <ul className="mt-4 space-y-2 text-sm text-amber-800">
-                  {qualityReport.issues.map((issue) => (
-                    <li key={issue} className="flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                      <span>{issue}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-4 text-sm text-green-700">No major quality issues detected.</p>
+            )}
+          </div>
+
+          <div className="order-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:order-3 lg:col-start-2">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-slate-900">
+                {batchProgress.total > 0 ? 'Batch Progress' : 'No batch running'}
+              </h2>
+              {batchProgress.total === 0 && (
+                <p className="mt-1 text-sm text-slate-500">Upload multiple images to process a drone inspection batch.</p>
               )}
             </div>
-          )}
+            <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+              <div className="bg-slate-50 rounded-lg p-3">
+                <p className="text-slate-500">Total</p>
+                <p className="font-mono text-xl font-bold text-slate-900">{batchProgress.total}</p>
+              </div>
+              <div className="bg-green-50 rounded-lg p-3">
+                <p className="text-green-700">Processed</p>
+                <p className="font-mono text-xl font-bold text-green-800">{batchProgress.processed}</p>
+              </div>
+              <div className="bg-blue-50 rounded-lg p-3">
+                <p className="text-blue-700">Pending</p>
+                <p className="font-mono text-xl font-bold text-blue-800">{pendingCount}</p>
+              </div>
+              <div className="bg-red-50 rounded-lg p-3">
+                <p className="text-red-700">Failed</p>
+                <p className="font-mono text-xl font-bold text-red-800">{batchProgress.failed}</p>
+              </div>
+            </div>
+            {batchProgress.total > 0 && (
+              <div className="mt-4 h-2 rounded-full bg-slate-100 overflow-hidden">
+                <div
+                  className="h-full bg-blue-600 transition-all"
+                  style={{
+                    width: `${Math.round(((batchProgress.processed + batchProgress.failed) / batchProgress.total) * 100)}%`,
+                  }}
+                ></div>
+              </div>
+            )}
+          </div>
 
           {(analysisError || saveError || jobError || batchErrors.length > 0) && (
-            <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
+            <div className="order-7 rounded-lg border-2 border-red-200 bg-red-50 p-4 lg:col-span-2">
               <p className="text-red-800">
                 <strong>Error:</strong> {analysisError || saveError || jobError || 'Some images failed during batch processing.'}
               </p>
@@ -1361,7 +1394,6 @@ export default function GutterClassifier() {
               )}
             </div>
           )}
-        </div>
       </div>
 
       <section className="mt-12 bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
@@ -1595,19 +1627,21 @@ export default function GutterClassifier() {
         </div>
       </section>
 
-      <div className="mt-12 bg-slate-50 rounded-lg border border-slate-200 p-6">
-        <h3 className="text-lg font-semibold text-slate-900 mb-3">MVP Scope & Future Improvements</h3>
-        <p className="text-slate-700 mb-4">
+      <details className="mt-8 rounded-lg border border-slate-200 bg-slate-50 p-4">
+        <summary className="cursor-pointer text-sm font-semibold text-slate-900">
+          MVP Scope & Future Improvements
+        </summary>
+        <p className="mt-3 text-sm text-slate-700">
           <strong>Current capability:</strong> This MVP processes single images or browser-based batches, checks quality,
           saves inspection records, and flags uncertain or out-of-context submissions for review. It does <u>not</u> run backend inference yet.
         </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <ClipboardList className="w-5 h-5 text-blue-600" />
-              <p className="font-semibold text-slate-900">Planned Features:</p>
+              <ClipboardList className="w-4 h-4 text-blue-600" />
+              <p className="text-sm font-semibold text-slate-900">Planned Features:</p>
             </div>
-            <ul className="text-sm text-slate-600 space-y-1 ml-7">
+            <ul className="text-sm text-slate-600 space-y-1 ml-6">
               <li className="flex items-center gap-2">
                 <Check className="w-4 h-4 text-green-600" />
                 <span>GPS location tagging</span>
@@ -1624,10 +1658,10 @@ export default function GutterClassifier() {
           </div>
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <FlaskConical className="w-5 h-5 text-purple-600" />
-              <p className="font-semibold text-slate-900">Advanced Analysis:</p>
+              <FlaskConical className="w-4 h-4 text-purple-600" />
+              <p className="text-sm font-semibold text-slate-900">Advanced Analysis:</p>
             </div>
-            <ul className="text-sm text-slate-600 space-y-1 ml-7">
+            <ul className="text-sm text-slate-600 space-y-1 ml-6">
               <li className="flex items-center gap-2">
                 <Check className="w-4 h-4 text-green-600" />
                 <span>Object detection for blockage location</span>
@@ -1643,7 +1677,7 @@ export default function GutterClassifier() {
             </ul>
           </div>
         </div>
-      </div>
+      </details>
     </div>
   );
 }
