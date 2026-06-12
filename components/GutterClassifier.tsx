@@ -16,6 +16,7 @@ import {
   Filter,
   FlaskConical,
   ImageOff,
+  Info,
   ListChecks,
   MapPin,
   Plus,
@@ -486,6 +487,26 @@ function downloadCsv(records: InspectionRecord[], jobs: InspectionJob[], selecte
   link.download = `urbanflow-inspections-${scope}-${new Date().toISOString().slice(0, 10)}.csv`;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function InfoHint({ text }: { text: string }) {
+  return (
+    <span className="group relative inline-flex">
+      <button
+        type="button"
+        aria-label={text}
+        className="inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-400 transition-colors hover:text-blue-600 focus:outline-none focus-visible:text-blue-600 focus-visible:ring-2 focus-visible:ring-blue-200"
+      >
+        <Info className="h-4 w-4" />
+      </button>
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 w-56 -translate-x-1/2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-xs font-normal leading-relaxed text-slate-600 opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+      >
+        {text}
+      </span>
+    </span>
+  );
 }
 
 export default function GutterClassifier() {
@@ -1070,7 +1091,10 @@ export default function GutterClassifier() {
               <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
                 <BriefcaseBusiness className="h-5 w-5" />
               </span>
-              <h2 className="text-lg font-semibold text-slate-900">Inspection Job</h2>
+              <div className="flex items-center gap-1.5">
+                <h2 className="text-lg font-semibold text-slate-900">Inspection Job</h2>
+                <InfoHint text="Group this drone inspection session under a job and location so its image records stay together. Optional — you can analyze images without a job." />
+              </div>
             </div>
 
             {selectedJob ? (
@@ -1231,7 +1255,10 @@ export default function GutterClassifier() {
               <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
                 <SlidersHorizontal className="h-5 w-5" />
               </span>
-              <h2 className="text-lg font-semibold text-slate-900">Inspection Rules</h2>
+              <div className="flex items-center gap-1.5">
+                <h2 className="text-lg font-semibold text-slate-900">Inspection Rules</h2>
+                <InfoHint text="The confidence threshold is the minimum certainty the AI needs to auto-decide. Images below it, or with quality issues, are routed to the review queue." />
+              </div>
             </div>
             <label className="flex items-center justify-between text-sm font-semibold text-slate-700" htmlFor="threshold">
               Confidence threshold
@@ -1257,7 +1284,10 @@ export default function GutterClassifier() {
                 <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
                   <Camera className="h-5 w-5" />
                 </span>
-                <h2 className="text-lg font-semibold text-slate-900">Image Preview</h2>
+                <div className="flex items-center gap-1.5">
+                  <h2 className="text-lg font-semibold text-slate-900">Image Preview</h2>
+                  <InfoHint text="Shows the image queued for analysis. When you upload a batch, click a thumbnail below to preview that photo." />
+                </div>
               </div>
               {selectedFiles.length > 1 && (
                 <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">
@@ -1348,7 +1378,10 @@ export default function GutterClassifier() {
                 <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
                   <ScanSearch className="h-5 w-5" />
                 </span>
-                <h2 className="text-lg font-semibold text-slate-900">Analysis Results</h2>
+                <div className="flex items-center gap-1.5">
+                  <h2 className="text-lg font-semibold text-slate-900">Analysis Results</h2>
+                  <InfoHint text="The AI's verdict for the current image — top class, confidence score, every class probability, and image-quality checks." />
+                </div>
               </div>
               <div className={`rounded-lg p-6 mb-6 ${getVerdictToneClasses(verdictInfo.tone)}`}>
                 <div className="flex items-start gap-3">
@@ -1462,9 +1495,12 @@ export default function GutterClassifier() {
                 <FileStack className="h-5 w-5" />
               </span>
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  {batchProgress.total > 0 ? 'Batch Progress' : 'No batch running'}
-                </h2>
+                <div className="flex items-center gap-1.5">
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    {batchProgress.total > 0 ? 'Batch Progress' : 'No batch running'}
+                  </h2>
+                  <InfoHint text="Live status while a batch of drone photos is analyzed: total, processed, pending, and failed counts." />
+                </div>
                 {batchProgress.total === 0 && (
                   <p className="text-xs text-slate-500">Upload multiple images to process a drone inspection batch.</p>
                 )}
