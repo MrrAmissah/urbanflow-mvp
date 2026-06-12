@@ -21,3 +21,10 @@
 - Added inspection jobs for grouping batch drone sessions under one job.
 - Added inspection job API routes and optional `job_id` support on inspection records.
 - Added job summary cards and selected-job CSV export.
+
+### Reliability
+
+- Batch processing now continues without a saved job when Supabase is unavailable, instead of aborting (matching the browser-only fallback already used for single inspections).
+- Batch start-up failures (model load or job setup) now surface a clear error instead of rejecting silently.
+- CSV export now attaches the download link to the document and defers releasing its temporary object URL, improving cross-browser download reliability.
+- Re-selecting the same image file now re-triggers the upload flow.

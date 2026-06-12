@@ -485,8 +485,12 @@ function downloadCsv(records: InspectionRecord[], jobs: InspectionJob[], selecte
   link.href = url;
   const scope = selectedJob ? selectedJob.title.replace(/[^a-zA-Z0-9._-]/g, '-').toLowerCase() : 'all';
   link.download = `urbanflow-inspections-${scope}-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.style.display = 'none';
+  document.body.appendChild(link);
   link.click();
-  URL.revokeObjectURL(url);
+  link.remove();
+  // Defer revocation so the browser finishes reading the blob before the URL is released.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function InfoHint({ text }: { text: string }) {
@@ -708,6 +712,8 @@ export default function GutterClassifier() {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     selectFiles(Array.from(e.target.files ?? []));
+    // Reset the input so re-selecting the same file still fires onChange.
+    e.target.value = '';
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -837,8 +843,10 @@ export default function GutterClassifier() {
     });
 
     if (!createdJob) {
+      // Supabase is unavailable: keep processing locally without a saved job rather than
+      // aborting the whole batch. The draft is left intact so it can be saved once persistence returns.
       setPersistenceStatus('local-only');
-      throw new Error('Supabase is not configured, so this batch will continue without a saved job.');
+      return null;
     }
 
     setJobs((items) => [createdJob, ...items.filter((item) => item.id !== createdJob.id)]);
@@ -911,6 +919,12 @@ export default function GutterClassifier() {
           }));
         }
       }
+    } catch (error) {
+      // Failures before/around the per-file loop (model load, job setup) would otherwise
+      // reject silently; surface them instead of leaving an unhandled rejection.
+      console.error('Batch processing could not start:', error);
+      setAnalysisError(error instanceof Error ? error.message : 'Batch processing could not start.');
+      setBatchProgress({ total: 0, processed: 0, failed: 0 });
     } finally {
       setBatchProcessing(false);
       setAnalyzing(false);
