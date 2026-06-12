@@ -11,13 +11,14 @@ Team Urbanflow helps inspection teams upload drone gutter images, run an in-brow
 The current MVP focuses on fast validation:
 
 - Upload and preview gutter/drainage images
+- Create inspection jobs for drone survey sessions
 - Run a Teachable Machine image model in the browser
 - Process multiple uploaded images one by one in a browser batch
 - Classify gutters as clean, choked, unclear, or out of context
 - Display confidence scores and class probabilities
 - Check image quality before trusting the result
 - Route flagged cases into an inspection review queue with reviewer corrections
-- Persist analyzed inspection records with Supabase when configured
+- Persist inspection jobs and analyzed image records with Supabase when configured
 - Review saved inspection history with filters and CSV export
 - Provide Open Graph preview metadata for link sharing
 
@@ -104,16 +105,18 @@ See [docs/MODEL.md](docs/MODEL.md) for model training, export, and class-naming 
 
 ## Current UX Flow
 
-1. User uploads one or multiple gutter/drainage images.
-2. App previews the selected image locally.
-3. App prepares the model if it is not ready yet.
-4. User runs one-image analysis or a browser-based batch.
-5. App checks image quality for each image.
-6. App displays verdicts, probabilities, and batch progress.
-7. App saves analyzed inspection records through the API routes.
-8. Flagged records stay in the review queue and reviewer corrections are saved with `PATCH /api/inspections/[id]`.
+1. User optionally creates or selects an inspection job with title, location, and notes.
+2. User uploads one or multiple gutter/drainage images.
+3. App previews the selected image locally.
+4. App prepares the model if it is not ready yet.
+5. User runs one-image analysis or a browser-based batch.
+6. App checks image quality for each image.
+7. App displays verdicts, probabilities, and batch progress.
+8. App saves analyzed inspection records through the API routes, including `job_id` when a job is active.
+9. Job summary cards show total, clean, choked, and review counts.
+10. Flagged records stay in the review queue and reviewer corrections are saved with `PATCH /api/inspections/[id]`.
 
-If Supabase is configured, inspection records are saved and loaded through the API routes. If Supabase is not configured yet, the app gracefully falls back to a browser-only queue for the current session.
+If Supabase is configured, inspection jobs and records are saved and loaded through the API routes. If Supabase is not configured yet, the app gracefully falls back to a browser-only queue for the current session.
 
 ## Deployment
 

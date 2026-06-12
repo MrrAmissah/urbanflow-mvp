@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
+  BriefcaseBusiness,
   Camera,
   Check,
   CheckCircle2,
@@ -12,6 +13,8 @@ import {
   Filter,
   FlaskConical,
   ImageOff,
+  MapPin,
+  Plus,
   RefreshCw,
   ShieldAlert,
   SlidersHorizontal,
@@ -19,6 +22,8 @@ import {
 } from 'lucide-react';
 import type {
   CreateInspectionPayload,
+  CreateInspectionJobPayload,
+  InspectionJob,
   InspectionRecord,
   InspectionStatus,
   InspectionVerdict,
@@ -62,6 +67,20 @@ interface AnalysisResult {
 type BatchPreview = {
   name: string;
   url: string;
+};
+
+type JobDraft = {
+  title: string;
+  locationName: string;
+  notes: string;
+};
+
+type JobSummary = {
+  job: InspectionJob;
+  total: number;
+  choked: number;
+  clean: number;
+  needsReview: number;
 };
 
 type Verdict = InspectionVerdict;
@@ -205,6 +224,25 @@ async function createInspectionRecord(payload: CreateInspectionPayload) {
 
   const data = (await response.json()) as { record?: InspectionRecord };
   return data.record ?? null;
+}
+
+async function createInspectionJob(payload: CreateInspectionJobPayload) {
+  const response = await fetch('/api/inspection-jobs', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (response.status === 503) return null;
+  if (!response.ok) {
+    const data = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(data?.message || 'Could not create inspection job.');
+  }
+
+  const data = (await response.json()) as { job?: InspectionJob };
+  return data.job ?? null;
 }
 
 async function updateInspectionRecord(
@@ -389,9 +427,23 @@ function escapeCsv(value: string | number | null | undefined) {
   return stringValue;
 }
 
-function downloadCsv(records: InspectionRecord[]) {
+function getJobForRecord(record: InspectionRecord, jobs: InspectionJob[]) {
+  return jobs.find((job) => job.id === record.jobId) ?? null;
+}
+
+function formatDate(value?: string) {
+  if (!value) return '-';
+  return new Intl.DateTimeFormat('en', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date(value));
+}
+
+function downloadCsv(records: InspectionRecord[], jobs: InspectionJob[], selectedJob: InspectionJob | null) {
   const headers = [
-    'id',
+    'job_title',
+    'location_name',
     'file_name',
     'verdict',
     'label',
@@ -401,23 +453,29 @@ function downloadCsv(records: InspectionRecord[]) {
     'image_url',
     'created_at',
   ];
-  const rows = records.map((record) => [
-    record.id,
-    record.fileName,
-    record.verdict,
-    record.label,
-    record.confidence,
-    record.status,
-    record.correction ?? '',
-    record.imageUrl ?? '',
-    record.createdAt ?? '',
-  ]);
+  const rows = records.map((record) => {
+    const job = getJobForRecord(record, jobs);
+
+    return [
+      job?.title ?? '',
+      job?.locationName ?? '',
+      record.fileName,
+      record.verdict,
+      record.label,
+      record.confidence,
+      record.status,
+      record.correction ?? '',
+      record.imageUrl ?? '',
+      record.createdAt ?? '',
+    ];
+  });
   const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `urbanflow-inspections-${new Date().toISOString().slice(0, 10)}.csv`;
+  const scope = selectedJob ? selectedJob.title.replace(/[^a-zA-Z0-9._-]/g, '-').toLowerCase() : 'all';
+  link.download = `urbanflow-inspections-${scope}-${new Date().toISOString().slice(0, 10)}.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -435,6 +493,15 @@ export default function GutterClassifier() {
   const [predictions, setPredictions] = useState<Prediction[] | null>(null);
   const [qualityReport, setQualityReport] = useState<QualityReport | null>(null);
   const [records, setRecords] = useState<InspectionRecord[]>([]);
+  const [jobs, setJobs] = useState<InspectionJob[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [jobDraft, setJobDraft] = useState<JobDraft>({
+    title: '',
+    locationName: '',
+    notes: '',
+  });
+  const [creatingJob, setCreatingJob] = useState(false);
+  const [jobError, setJobError] = useState<string | null>(null);
   const [threshold, setThreshold] = useState(70);
   const [analyzing, setAnalyzing] = useState(false);
   const [batchProcessing, setBatchProcessing] = useState(false);
@@ -456,19 +523,43 @@ export default function GutterClassifier() {
   const reviewQueue = useMemo(
     () =>
       records
+        .filter((record) => !selectedJobId || record.jobId === selectedJobId)
         .filter((record) => record.status === 'Needs review')
         .map(inspectionRecordToReviewItem),
-    [records]
+    [records, selectedJobId]
+  );
+  const selectedJob = useMemo(
+    () => jobs.find((job) => job.id === selectedJobId) ?? null,
+    [jobs, selectedJobId]
+  );
+  const jobScopedRecords = useMemo(
+    () => (selectedJobId ? records.filter((record) => record.jobId === selectedJobId) : records),
+    [records, selectedJobId]
   );
   const filteredRecords = useMemo(
-    () => filterRecords(records, activeFilter, threshold),
-    [records, activeFilter, threshold]
+    () => filterRecords(jobScopedRecords, activeFilter, threshold),
+    [jobScopedRecords, activeFilter, threshold]
+  );
+  const jobSummaries = useMemo<JobSummary[]>(
+    () =>
+      jobs.map((job) => {
+        const jobRecords = records.filter((record) => record.jobId === job.id);
+
+        return {
+          job,
+          total: jobRecords.length,
+          choked: jobRecords.filter((record) => record.verdict === 'choked').length,
+          clean: jobRecords.filter((record) => record.verdict === 'clean').length,
+          needsReview: jobRecords.filter((record) => record.status === 'Needs review').length,
+        };
+      }),
+    [jobs, records]
   );
   const topPrediction = predictions?.[0];
   const verdict = mapPredictionToVerdict(topPrediction, qualityReport, threshold);
   const verdictInfo = verdictContent[verdict];
   const confidence = topPrediction ? topPrediction.probability * 100 : 0;
-  const needsReviewCount = records.filter((item) => item.status === 'Needs review').length;
+  const needsReviewCount = jobScopedRecords.filter((item) => item.status === 'Needs review').length;
   const pendingCount = Math.max(batchProgress.total - batchProgress.processed - batchProgress.failed, 0);
 
   useEffect(() => {
@@ -513,17 +604,24 @@ export default function GutterClassifier() {
 
   const refreshRecords = useCallback(async () => {
     try {
-      const response = await fetch('/api/inspections');
-      if (response.status === 503) {
+      const [recordsResponse, jobsResponse] = await Promise.all([
+        fetch('/api/inspections'),
+        fetch('/api/inspection-jobs'),
+      ]);
+
+      if (recordsResponse.status === 503 || jobsResponse.status === 503) {
         setPersistenceStatus('local-only');
         return;
       }
 
-      if (!response.ok) throw new Error('Could not load inspections.');
+      if (!recordsResponse.ok) throw new Error('Could not load inspections.');
+      if (!jobsResponse.ok) throw new Error('Could not load inspection jobs.');
 
-      const data = (await response.json()) as { records?: InspectionRecord[] };
+      const data = (await recordsResponse.json()) as { records?: InspectionRecord[] };
+      const jobsData = (await jobsResponse.json()) as { jobs?: InspectionJob[] };
       setPersistenceStatus('connected');
       setRecords(data.records ?? []);
+      setJobs(jobsData.jobs ?? []);
     } catch (error) {
       console.warn('Supabase inspection queue unavailable:', error);
       setPersistenceStatus('local-only');
@@ -625,9 +723,10 @@ export default function GutterClassifier() {
     setRecords((items) => [record, ...items.filter((item) => item.id !== record.id)]);
   };
 
-  const saveAnalysisResult = async (result: AnalysisResult) => {
+  const saveAnalysisResult = async (result: AnalysisResult, jobId: string | null) => {
     const localRecord: InspectionRecord = {
       id: crypto.randomUUID(),
+      jobId,
       imageUrl: null,
       fileName: result.file.name,
       verdict: result.verdict,
@@ -643,6 +742,7 @@ export default function GutterClassifier() {
 
     try {
       const savedItem = await createInspectionRecord({
+        jobId,
         imageDataUrl: result.imageDataUrl,
         fileName: result.file.name,
         verdict: result.verdict,
@@ -666,6 +766,59 @@ export default function GutterClassifier() {
     }
   };
 
+  const handleCreateJob = async () => {
+    try {
+      setCreatingJob(true);
+      setJobError(null);
+      setSaveError(null);
+
+      const createdJob = await createInspectionJob({
+        title: jobDraft.title,
+        locationName: jobDraft.locationName,
+        notes: jobDraft.notes,
+      });
+
+      if (!createdJob) {
+        setPersistenceStatus('local-only');
+        throw new Error('Supabase is not configured, so this job cannot be saved yet.');
+      }
+
+      setJobs((items) => [createdJob, ...items.filter((item) => item.id !== createdJob.id)]);
+      setSelectedJobId(createdJob.id);
+      setJobDraft({ title: '', locationName: '', notes: '' });
+      setPersistenceStatus('connected');
+    } catch (error) {
+      console.warn('Inspection job was not created:', error);
+      setJobError(error instanceof Error ? error.message : 'Could not create inspection job.');
+    } finally {
+      setCreatingJob(false);
+    }
+  };
+
+  const ensureBatchJob = async () => {
+    if (selectedJobId) return selectedJobId;
+
+    const hasDraft = jobDraft.title.trim() || jobDraft.locationName.trim() || jobDraft.notes.trim();
+    if (!hasDraft) return null;
+
+    const createdJob = await createInspectionJob({
+      title: jobDraft.title,
+      locationName: jobDraft.locationName,
+      notes: jobDraft.notes,
+    });
+
+    if (!createdJob) {
+      setPersistenceStatus('local-only');
+      throw new Error('Supabase is not configured, so this batch will continue without a saved job.');
+    }
+
+    setJobs((items) => [createdJob, ...items.filter((item) => item.id !== createdJob.id)]);
+    setSelectedJobId(createdJob.id);
+    setJobDraft({ title: '', locationName: '', notes: '' });
+    setPersistenceStatus('connected');
+    return createdJob.id;
+  };
+
   const handleAnalyze = async () => {
     if (!selectedFile) return;
 
@@ -682,7 +835,7 @@ export default function GutterClassifier() {
       setImagePreview(result.imageDataUrl);
       setQualityReport(result.quality);
       setPredictions(result.predictions);
-      await saveAnalysisResult(result);
+      await saveAnalysisResult(result, selectedJobId);
     } catch (error) {
       console.error('Error analyzing image:', error);
       setAnalysisError(error instanceof Error ? error.message : 'Failed to analyze image.');
@@ -705,6 +858,7 @@ export default function GutterClassifier() {
       const activeModel = model ?? (await loadGutterModel());
       setModel(activeModel);
       setModelLoading(false);
+      const batchJobId = await ensureBatchJob();
 
       for (const file of selectedFiles) {
         try {
@@ -713,7 +867,7 @@ export default function GutterClassifier() {
           setImagePreview(result.imageDataUrl);
           setQualityReport(result.quality);
           setPredictions(result.predictions);
-          await saveAnalysisResult(result);
+          await saveAnalysisResult(result, batchJobId);
           setBatchProgress((progress) => ({
             ...progress,
             processed: progress.processed + 1,
@@ -844,6 +998,82 @@ export default function GutterClassifier() {
             <p className="mt-3 text-xs text-slate-500">
               Low confidence, poor quality, and out-of-context classes are routed to review.
             </p>
+          </div>
+
+          <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <h2 className="text-lg font-semibold text-slate-900">Inspection Job</h2>
+              <BriefcaseBusiness className="w-5 h-5 text-blue-600" />
+            </div>
+
+            {selectedJob ? (
+              <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
+                <p className="text-sm font-semibold text-blue-900">{selectedJob.title}</p>
+                <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-blue-700">
+                  <MapPin className="w-3.5 h-3.5" />
+                  {selectedJob.locationName}
+                </p>
+                {selectedJob.notes && <p className="mt-2 text-xs text-blue-800">{selectedJob.notes}</p>}
+              </div>
+            ) : (
+              <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-semibold text-slate-800">No active job</p>
+                <p className="mt-1 text-xs text-slate-500">Batch images can still be processed without grouping.</p>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <label className="block text-sm font-semibold text-slate-700" htmlFor="job-select">
+                Existing job
+              </label>
+              <select
+                id="job-select"
+                value={selectedJobId ?? ''}
+                onChange={(event) => setSelectedJobId(event.target.value || null)}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500"
+              >
+                <option value="">Continue without a job</option>
+                {jobs.map((job) => (
+                  <option key={job.id} value={job.id}>
+                    {job.title} - {job.locationName}
+                  </option>
+                ))}
+              </select>
+
+              <div className="grid grid-cols-1 gap-3">
+                <input
+                  type="text"
+                  value={jobDraft.title}
+                  onChange={(event) => setJobDraft((draft) => ({ ...draft, title: event.target.value }))}
+                  placeholder="Job title"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                />
+                <input
+                  type="text"
+                  value={jobDraft.locationName}
+                  onChange={(event) => setJobDraft((draft) => ({ ...draft, locationName: event.target.value }))}
+                  placeholder="Location name"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                />
+                <textarea
+                  value={jobDraft.notes}
+                  onChange={(event) => setJobDraft((draft) => ({ ...draft, notes: event.target.value }))}
+                  placeholder="Optional notes"
+                  rows={3}
+                  className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCreateJob}
+                disabled={creatingJob || !jobDraft.title.trim() || !jobDraft.locationName.trim()}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
+              >
+                <Plus className="w-4 h-4" />
+                {creatingJob ? 'Creating job...' : 'Create & Use Job'}
+              </button>
+            </div>
           </div>
 
           <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
@@ -1116,10 +1346,10 @@ export default function GutterClassifier() {
             </div>
           )}
 
-          {(analysisError || saveError || batchErrors.length > 0) && (
+          {(analysisError || saveError || jobError || batchErrors.length > 0) && (
             <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
               <p className="text-red-800">
-                <strong>Error:</strong> {analysisError || saveError || 'Some images failed during batch processing.'}
+                <strong>Error:</strong> {analysisError || saveError || jobError || 'Some images failed during batch processing.'}
               </p>
               {batchErrors.length > 0 && (
                 <ul className="mt-3 space-y-1 text-sm text-red-700">
@@ -1135,6 +1365,75 @@ export default function GutterClassifier() {
       </div>
 
       <section className="mt-12 bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between mb-5">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-900">Inspection Jobs</h3>
+            <p className="text-sm text-slate-500">Group a drone inspection session into one job with many image records.</p>
+          </div>
+          {selectedJob && (
+            <button
+              type="button"
+              onClick={() => setSelectedJobId(null)}
+              className="inline-flex items-center justify-center rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Show All Records
+            </button>
+          )}
+        </div>
+
+        {jobSummaries.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
+            <p className="text-sm text-slate-600">No inspection jobs created yet.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {jobSummaries.map((summary) => (
+              <button
+                key={summary.job.id}
+                type="button"
+                onClick={() => setSelectedJobId(summary.job.id)}
+                className={`rounded-lg border p-4 text-left transition-colors hover:border-blue-300 hover:bg-blue-50 ${
+                  selectedJobId === summary.job.id ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-slate-900">{summary.job.title}</p>
+                    <p className="mt-1 flex items-center gap-1 text-sm text-slate-600">
+                      <MapPin className="w-4 h-4 text-blue-600" />
+                      {summary.job.locationName}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                    {formatDate(summary.job.createdAt)}
+                  </span>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+                  <div className="rounded-lg bg-slate-50 p-2">
+                    <p className="text-slate-500">Images</p>
+                    <p className="font-mono text-lg font-bold text-slate-900">{summary.total}</p>
+                  </div>
+                  <div className="rounded-lg bg-amber-50 p-2">
+                    <p className="text-amber-700">Choked</p>
+                    <p className="font-mono text-lg font-bold text-amber-800">{summary.choked}</p>
+                  </div>
+                  <div className="rounded-lg bg-green-50 p-2">
+                    <p className="text-green-700">Clean</p>
+                    <p className="font-mono text-lg font-bold text-green-800">{summary.clean}</p>
+                  </div>
+                  <div className="rounded-lg bg-blue-50 p-2">
+                    <p className="text-blue-700">Review</p>
+                    <p className="font-mono text-lg font-bold text-blue-800">{summary.needsReview}</p>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="mt-8 bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between mb-5">
           <div>
             <h3 className="text-lg font-semibold text-slate-900">Inspection Review Queue</h3>
@@ -1214,16 +1513,19 @@ export default function GutterClassifier() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h3 className="text-lg font-semibold text-slate-900">Inspection Records Dashboard</h3>
-            <p className="text-sm text-slate-500">{filteredRecords.length} of {records.length} record(s) shown</p>
+            <p className="text-sm text-slate-500">
+              {filteredRecords.length} of {jobScopedRecords.length} record(s) shown
+              {selectedJob ? ` for ${selectedJob.title}` : ''}
+            </p>
           </div>
           <button
             type="button"
-            onClick={() => downloadCsv(filteredRecords)}
+            onClick={() => downloadCsv(filteredRecords, jobs, selectedJob)}
             disabled={!filteredRecords.length}
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed"
           >
             <Download className="w-4 h-4" />
-            Export CSV
+            {selectedJob ? 'Export Job CSV' : 'Export CSV'}
           </button>
         </div>
 
@@ -1249,6 +1551,7 @@ export default function GutterClassifier() {
           <table className="min-w-full text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500">
+                <th className="py-3 pr-4 font-semibold">Job</th>
                 <th className="py-3 pr-4 font-semibold">File</th>
                 <th className="py-3 pr-4 font-semibold">Verdict</th>
                 <th className="py-3 pr-4 font-semibold">Confidence</th>
@@ -1259,28 +1562,33 @@ export default function GutterClassifier() {
             <tbody>
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-6 text-center text-slate-500">
+                  <td colSpan={6} className="py-6 text-center text-slate-500">
                     No inspection records match this filter.
                   </td>
                 </tr>
               ) : (
-                filteredRecords.map((record) => (
-                  <tr key={record.id} className="border-b border-slate-100">
-                    <td className="py-3 pr-4 font-medium text-slate-900">
-                      {record.imageUrl ? (
-                        <a href={record.imageUrl} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline">
-                          {record.fileName}
-                        </a>
-                      ) : (
-                        record.fileName
-                      )}
-                    </td>
-                    <td className="py-3 pr-4 text-slate-700">{verdictContent[record.verdict]?.title ?? record.verdict}</td>
-                    <td className="py-3 pr-4 font-mono text-slate-900">{record.confidence}%</td>
-                    <td className="py-3 pr-4 text-slate-700">{record.status}</td>
-                    <td className="py-3 pr-4 text-slate-500">{record.correction ?? '-'}</td>
-                  </tr>
-                ))
+                filteredRecords.map((record) => {
+                  const recordJob = getJobForRecord(record, jobs);
+
+                  return (
+                    <tr key={record.id} className="border-b border-slate-100">
+                      <td className="py-3 pr-4 text-slate-600">{recordJob?.title ?? '-'}</td>
+                      <td className="py-3 pr-4 font-medium text-slate-900">
+                        {record.imageUrl ? (
+                          <a href={record.imageUrl} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline">
+                            {record.fileName}
+                          </a>
+                        ) : (
+                          record.fileName
+                        )}
+                      </td>
+                      <td className="py-3 pr-4 text-slate-700">{verdictContent[record.verdict]?.title ?? record.verdict}</td>
+                      <td className="py-3 pr-4 font-mono text-slate-900">{record.confidence}%</td>
+                      <td className="py-3 pr-4 text-slate-700">{record.status}</td>
+                      <td className="py-3 pr-4 text-slate-500">{record.correction ?? '-'}</td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

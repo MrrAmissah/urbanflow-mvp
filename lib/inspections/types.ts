@@ -3,6 +3,7 @@ export type InspectionVerdict = 'clean' | 'choked' | 'out-of-context' | 'manual-
 
 export type InspectionRecord = {
   id: string;
+  jobId?: string | null;
   imageUrl: string | null;
   fileName: string;
   verdict: InspectionVerdict;
@@ -15,6 +16,7 @@ export type InspectionRecord = {
 };
 
 export type CreateInspectionPayload = {
+  jobId?: string | null;
   imageDataUrl?: string;
   fileName: string;
   verdict: InspectionVerdict;
@@ -29,4 +31,19 @@ export type UpdateInspectionPayload = {
   status: InspectionStatus;
   correction?: string | null;
   verdict?: InspectionVerdict;
+};
+
+export type InspectionJob = {
+  id: string;
+  title: string;
+  locationName: string;
+  notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type CreateInspectionJobPayload = {
+  title: string;
+  locationName: string;
+  notes?: string | null;
 };

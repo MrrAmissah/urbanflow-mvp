@@ -18,3 +18,6 @@
 - Added a persistent inspection records dashboard loaded from `GET /api/inspections`.
 - Added dashboard filters and CSV export.
 - Added reviewer correction persistence through `PATCH /api/inspections/[id]`.
+- Added inspection jobs for grouping batch drone sessions under one job.
+- Added inspection job API routes and optional `job_id` support on inspection records.
+- Added job summary cards and selected-job CSV export.

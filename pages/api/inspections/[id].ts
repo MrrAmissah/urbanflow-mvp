@@ -1,21 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin, hasSupabaseServerConfig } from '@/lib/supabase/server';
-import type { InspectionRecord, UpdateInspectionPayload } from '@/lib/inspections/types';
-
-function toInspectionRecord(row: Record<string, unknown>): InspectionRecord {
-  return {
-    id: String(row.id),
-    imageUrl: typeof row.image_url === 'string' ? row.image_url : null,
-    fileName: String(row.file_name ?? ''),
-    verdict: row.verdict as InspectionRecord['verdict'],
-    label: String(row.label ?? ''),
-    confidence: Number(row.confidence ?? 0),
-    status: row.status as InspectionRecord['status'],
-    correction: typeof row.correction === 'string' ? row.correction : null,
-    quality: (row.quality as Record<string, unknown> | null) ?? null,
-    createdAt: typeof row.created_at === 'string' ? row.created_at : undefined,
-  };
-}
+import { toInspectionRecord } from '@/lib/inspections/mappers';
+import type { UpdateInspectionPayload } from '@/lib/inspections/types';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'PATCH') {

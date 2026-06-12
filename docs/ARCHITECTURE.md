@@ -8,12 +8,13 @@ Team Urbanflow is a client-heavy Next.js MVP. The page shell is rendered by Next
 User browser
   ├─ Upload one image or a multi-image batch
   ├─ Preview image locally
+  ├─ Optionally create/select an inspection job
   ├─ Lazy-load TensorFlow.js + Teachable Machine
   ├─ Load model from /public/model
   ├─ Run image quality checks per image
   ├─ Run prediction per image
-  ├─ Save analyzed records through Next.js API routes
-  └─ Display verdicts, dashboard filters, CSV export, and review queue
+  ├─ Save analyzed records through Next.js API routes with optional job_id
+  └─ Display job summaries, verdicts, dashboard filters, CSV export, and review queue
 ```
 
 ## Key Files
@@ -23,7 +24,7 @@ pages/index.tsx
   Page metadata, social preview tags, model preloads, and app shell.
 
 components/GutterClassifier.tsx
-  Main interactive upload, browser batch analysis, verdict, quality-check, dashboard, and review queue logic.
+  Main interactive upload, inspection job, browser batch analysis, verdict, quality-check, dashboard, and review queue logic.
 
 public/model/*
   Exported Google Teachable Machine TensorFlow.js model.
@@ -59,6 +60,8 @@ type ReviewItem = {
 
 In Supabase mode, records live in `inspection_records` and images can be stored in Supabase Storage. In local-only mode, the queue resets on page refresh.
 
+Inspection jobs live in `inspection_jobs`. Each inspection record can optionally include `job_id`, allowing one drone survey session to contain many classified image records.
+
 ## Model Loading Strategy
 
 The app avoids putting TensorFlow.js in the initial HTML payload. Instead:
@@ -88,7 +91,7 @@ Supabase Storage
   Stores inspection images.
 
 Supabase Postgres
-  Stores inspection records, statuses, reviewer corrections, timestamps, and image URLs.
+  Stores inspection jobs, inspection records, statuses, reviewer corrections, timestamps, and image URLs.
 
 Next.js API routes
   Keep the Supabase service role key on the server.

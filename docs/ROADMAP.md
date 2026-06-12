@@ -3,6 +3,7 @@
 ## Current MVP
 
 - Upload a gutter/drainage image
+- Create inspection jobs for drone survey sessions
 - Upload and process multiple images in a browser batch
 - Preview image locally
 - Run in-browser Teachable Machine classification
@@ -11,10 +12,12 @@
 - Show batch progress for total, processed, pending, and failed images
 - Route flagged cases into a review queue
 - Persist inspection records with Supabase Postgres
+- Relate inspection records to jobs with `job_id`
 - Persist uploaded inspection images with Supabase Storage
+- Show job summary cards with record counts
 - Load a persistent inspection records dashboard
 - Filter records by verdict, status, out-of-context, and low-confidence states
-- Export inspection records as CSV
+- Export all records or selected-job records as CSV
 - Save reviewer corrections with `PATCH /api/inspections/[id]`
 - Provide share preview metadata
 - Deploy on Vercel

@@ -1,7 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { randomUUID } from 'crypto';
 import { getSupabaseAdmin, hasSupabaseServerConfig } from '@/lib/supabase/server';
-import type { CreateInspectionPayload, InspectionRecord } from '@/lib/inspections/types';
+import { toInspectionRecord } from '@/lib/inspections/mappers';
+import type { CreateInspectionPayload } from '@/lib/inspections/types';
 
 export const config = {
   api: {
@@ -12,21 +13,6 @@ export const config = {
 };
 
 const BUCKET_NAME = process.env.SUPABASE_INSPECTION_BUCKET ?? 'inspection-images';
-
-function toInspectionRecord(row: Record<string, unknown>): InspectionRecord {
-  return {
-    id: String(row.id),
-    imageUrl: typeof row.image_url === 'string' ? row.image_url : null,
-    fileName: String(row.file_name ?? ''),
-    verdict: row.verdict as InspectionRecord['verdict'],
-    label: String(row.label ?? ''),
-    confidence: Number(row.confidence ?? 0),
-    status: row.status as InspectionRecord['status'],
-    correction: typeof row.correction === 'string' ? row.correction : null,
-    quality: (row.quality as Record<string, unknown> | null) ?? null,
-    createdAt: typeof row.created_at === 'string' ? row.created_at : undefined,
-  };
-}
 
 function parseDataUrl(dataUrl: string) {
   const match = dataUrl.match(/^data:(.+);base64,(.+)$/);
@@ -99,6 +85,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const { data, error } = await supabase
         .from('inspection_records')
         .insert({
+          job_id: payload.jobId ?? null,
           image_url: imageUrl,
           file_name: payload.fileName,
           verdict: payload.verdict,
