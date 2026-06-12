@@ -1,102 +1,186 @@
 # Architecture
 
-## Application Shape
+Team Urbanflow is a client-heavy Next.js inspection dashboard. The AI model runs in the browser, while persistence is handled through server-side API routes connected to Supabase.
 
-Team Urbanflow is a client-heavy Next.js MVP. The page shell is rendered by Next.js, while image preview, model loading, quality checks, and predictions run in the browser.
+## End-to-End Flow
 
 ```txt
-User browser
-  ├─ Upload one image or a multi-image batch
-  ├─ Preview image locally
-  ├─ Optionally create/select an inspection job
-  ├─ Lazy-load TensorFlow.js + Teachable Machine
-  ├─ Load model from /public/model
-  ├─ Run image quality checks per image
-  ├─ Run prediction per image
-  ├─ Save analyzed records through Next.js API routes with optional job_id
-  └─ Display job summaries, verdicts, dashboard filters, CSV export, and review queue
+Drone images
+  -> Next.js dashboard
+  -> Browser image preview
+  -> Browser Teachable Machine / TensorFlow.js model
+  -> Image quality checks
+  -> Verdict + class confidence
+  -> Next.js API routes
+  -> Supabase Storage + Postgres
+  -> Review queue / dashboard / CSV export
 ```
 
-## Key Files
+## Detailed Flow
+
+```txt
+User
+  |
+  | uploads one image or a batch
+  v
+Next.js dashboard (`components/GutterClassifier.tsx`)
+  |
+  | creates/selects optional inspection job
+  | previews image locally
+  | lazy-loads TensorFlow.js and Teachable Machine
+  v
+Browser model inference
+  |
+  | returns class probabilities
+  v
+Quality and verdict layer
+  |
+  | checks resolution, brightness, sharpness
+  | maps class + confidence + quality to verdict
+  v
+API routes
+  |
+  | POST /api/inspection-jobs
+  | POST /api/inspections
+  | PATCH /api/inspections/[id]
+  v
+Supabase
+  |
+  | inspection_jobs
+  | inspection_records
+  | inspection-images bucket
+  v
+Dashboard
+  |
+  | job summaries
+  | review queue
+  | filters
+  | CSV export
+```
+
+## Key Design Choice
+
+The app keeps AI inference in the browser for the current MVP.
+
+Benefits:
+
+- No backend ML server required.
+- Fast demo setup.
+- Uploaded images can be previewed and classified immediately.
+- The existing Teachable Machine export works directly with TensorFlow.js.
+
+Trade-offs:
+
+- Model size affects browser load time.
+- Browser inference depends on user device performance.
+- The current approach produces image-level classifications only.
+- Bounding boxes, segmentation, and large-scale processing would require a future architecture.
+
+## Main Files
 
 ```txt
 pages/index.tsx
-  Page metadata, social preview tags, model preloads, and app shell.
+  Metadata, icon references, model preloads, and app shell.
 
 components/GutterClassifier.tsx
-  Main interactive upload, inspection job, browser batch analysis, verdict, quality-check, dashboard, and review queue logic.
+  Main dashboard: upload, jobs, browser inference, quality checks, review queue, records dashboard, and CSV export.
+
+components/UrbanflowLogo.tsx
+  SVG brand mark used beside the page title.
+
+lib/inspections/types.ts
+  Shared inspection record and job types.
+
+lib/inspections/mappers.ts
+  Supabase row mapping helpers.
+
+lib/supabase/server.ts
+  Server-side Supabase admin client.
+
+pages/api/inspection-jobs/*
+  Inspection job API routes.
+
+pages/api/inspections/*
+  Inspection record API routes.
 
 public/model/*
-  Exported Google Teachable Machine TensorFlow.js model.
-
-public/social-preview.png
-  Open Graph image used when the link is shared.
-
-next.config.ts
-  Next.js config and cache headers for model assets.
+  Teachable Machine TensorFlow.js model files.
 ```
 
-## Current Data Model
-
-The MVP supports two persistence modes:
-
-- Supabase mode: analyzed inspections are saved through API routes and loaded on page open.
-- Local-only mode: if Supabase is not configured, analyzed inspections stay in browser state only.
-
-The UI uses this review item shape:
-
-```ts
-type ReviewItem = {
-  id: string
-  imageUrl?: string | null
-  fileName: string
-  verdict: Verdict
-  label: string
-  confidence: number
-  status: 'Needs review' | 'Approved' | 'Corrected'
-  correction?: string
-}
-```
-
-In Supabase mode, records live in `inspection_records` and images can be stored in Supabase Storage. In local-only mode, the queue resets on page refresh.
-
-Inspection jobs live in `inspection_jobs`. Each inspection record can optionally include `job_id`, allowing one drone survey session to contain many classified image records.
-
-## Model Loading Strategy
-
-The app avoids putting TensorFlow.js in the initial HTML payload. Instead:
-
-- The interface renders first.
-- Model files are preloaded from `/model/*`.
-- TensorFlow.js and Teachable Machine are dynamically imported.
-- Users can select an image while the model is preparing.
-- If the user analyzes before the model is ready, the app prepares and analyzes in one action.
-
-## Quality Checks
-
-Before trusting a prediction, the app samples image pixels in a small canvas and estimates:
-
-- Resolution
-- Brightness
-- Sharpness
-
-Hard quality issues push the result toward manual review.
-
-## Persistence Architecture
-
-Current implementation:
+## Data Model
 
 ```txt
-Supabase Storage
-  Stores inspection images.
+inspection_jobs
+  id
+  title
+  location_name
+  notes
+  created_at
+  updated_at
 
-Supabase Postgres
-  Stores inspection jobs, inspection records, statuses, reviewer corrections, timestamps, and image URLs.
-
-Next.js API routes
-  Keep the Supabase service role key on the server.
+inspection_records
+  id
+  job_id -> inspection_jobs.id
+  image_url
+  file_name
+  verdict
+  label
+  confidence
+  status
+  correction
+  quality
+  created_at
 ```
 
-The browser still performs all Teachable Machine inference. Backend ML inference is a future architecture step, not part of the current implementation.
+## Model Layer
 
-See [SUPABASE.md](SUPABASE.md) for setup details.
+The current model is an image classifier exported from Google Teachable Machine:
+
+```txt
+public/model/model.json
+public/model/metadata.json
+public/model/weights.bin
+```
+
+The browser loads the model lazily and returns class probabilities. The app then applies confidence and image-quality checks to decide whether a result is approved or routed to review.
+
+The current model does not perform object detection, bounding-box localization, segmentation, or automatic retraining.
+
+## Persistence Layer
+
+Supabase is accessed only from server-side API routes.
+
+```txt
+GET    /api/inspection-jobs
+POST   /api/inspection-jobs
+GET    /api/inspection-jobs/[id]
+GET    /api/inspections
+POST   /api/inspections
+PATCH  /api/inspections/[id]
+```
+
+The service role key is never exposed to browser code.
+
+If Supabase is not configured, the app can still run as a local browser session, but records will not persist after refresh.
+
+## Future Architecture Options
+
+The likely future upgrade path is:
+
+```txt
+Current MVP
+  Browser Teachable Machine classifier
+
+Next model step
+  Better Teachable Machine training data and class balance
+
+Later
+  YOLOv8 classification evaluation
+
+Advanced
+  YOLOv8 object detection with FastAPI/backend inference
+  Bounding-box overlays
+  Detection records stored with inspection results
+```
+
+Backend ML inference is intentionally not part of the current implementation.

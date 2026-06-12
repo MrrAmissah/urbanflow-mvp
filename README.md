@@ -1,43 +1,162 @@
 # Team Urbanflow
 
-AI-powered drone gutter inspection MVP built with Next.js, TensorFlow.js, and Google Teachable Machine.
+AI-powered civic-tech inspection dashboard for drone gutter and drainage images.
 
-Live app: https://urbanflow-mvp.vercel.app
+Team Urbanflow is a portfolio-grade MVP that helps inspection teams upload drone images, classify gutter condition in the browser, group batches into inspection jobs, persist results to Supabase, and route uncertain results into human review.
 
-## Overview
+Live demo: https://urbanflow-mvp.vercel.app  
+Repository: `https://github.com/MrrAmissah/urbanflow-mvp`
 
-Team Urbanflow helps inspection teams upload drone gutter images, run an in-browser AI classification, and route uncertain or poor-quality results into a lightweight review queue.
+## Screenshots
 
-The current MVP focuses on fast validation:
+Screenshots should be added before final portfolio publication.
 
-- Upload and preview gutter/drainage images
-- Create inspection jobs for drone survey sessions
-- Run a Teachable Machine image model in the browser
-- Process multiple uploaded images one by one in a browser batch
-- Classify gutters as clean, choked, unclear, or out of context
-- Display confidence scores and class probabilities
-- Check image quality before trusting the result
-- Route flagged cases into an inspection review queue with reviewer corrections
-- Persist inspection jobs and analyzed image records with Supabase when configured
-- Review saved inspection history with filters and CSV export
-- Provide Open Graph preview metadata for link sharing
+Recommended captures:
+
+- Dashboard overview
+- Upload state
+- Analysis result
+- Batch progress
+- Inspection jobs summary
+- Review queue
+- Records dashboard and CSV export
+
+See [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md) for a screenshot checklist.
+
+## Features
+
+- Browser-side AI image classification with Google Teachable Machine and TensorFlow.js
+- Single-image upload and preview
+- Multi-image batch upload with sequential browser processing
+- Inspection jobs for grouping one drone inspection session
+- Image quality checks for resolution, brightness, and sharpness
+- Confidence threshold control
+- Verdict routing for clean, choked, out-of-context, and manual-review cases
+- Human review queue with reviewer corrections
+- Supabase-backed inspection records and image persistence
+- Persistent records dashboard with filters
+- CSV export for all records or selected-job records
+- Responsive dashboard layout with useful first-load empty states
+- Project documentation, model improvement plan, and demo guide
 
 ## Tech Stack
 
-- Next.js 16 with the Pages Router
+- Next.js 16 Pages Router
 - React 19
 - TypeScript
 - Tailwind CSS 4
 - TensorFlow.js
 - `@teachablemachine/image`
+- Supabase Postgres and Storage
 - Lucide React icons
 - Vercel hosting
-- Supabase for optional inspection persistence
+- GitHub Actions CI
 
-## Quick Start
+## Architecture Overview
+
+```txt
+Drone gutter images
+  -> Next.js inspection dashboard
+  -> Browser-side Teachable Machine model
+  -> Image quality checks
+  -> Verdict/class/confidence result
+  -> Next.js API routes
+  -> Supabase Storage + Postgres
+  -> Review queue, job summaries, dashboard filters, CSV export
+```
+
+The app is intentionally client-heavy for the AI workflow. The model runs in the browser, while Supabase writes stay behind server-side API routes so service keys are never exposed to the client.
+
+Read more in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## AI Model
+
+The current model is a Google Teachable Machine image classifier exported as TensorFlow.js files:
+
+```txt
+public/model/model.json
+public/model/metadata.json
+public/model/weights.bin
+```
+
+The model returns image-level class probabilities. The MVP maps the top prediction and confidence score into operational verdicts such as clean, choked, out-of-context, or manual review.
+
+Current AI scope:
+
+- Image classification only
+- No object detection
+- No bounding boxes
+- No segmentation masks
+- No automatic retraining
+- No backend inference
+
+See [docs/MODEL.md](docs/MODEL.md), [docs/KAGGLE_NOTEBOOK_FEASIBILITY.md](docs/KAGGLE_NOTEBOOK_FEASIBILITY.md), and [docs/MODEL_IMPROVEMENT_PLAN.md](docs/MODEL_IMPROVEMENT_PLAN.md).
+
+## Supabase Persistence
+
+Supabase is used for optional persistence:
+
+- `inspection_jobs`: groups a drone inspection session
+- `inspection_records`: stores image verdicts, confidence, status, correction, quality report, and optional `job_id`
+- Supabase Storage bucket: stores uploaded inspection images
+
+Server-side API routes handle all Supabase writes:
+
+```txt
+GET    /api/inspection-jobs
+POST   /api/inspection-jobs
+GET    /api/inspection-jobs/[id]
+GET    /api/inspections
+POST   /api/inspections
+PATCH  /api/inspections/[id]
+```
+
+See [docs/SUPABASE.md](docs/SUPABASE.md) for the database setup.
+
+## Current Limitations
+
+This project is an MVP and portfolio case study, not a production municipal inspection system.
+
+Known limitations:
+
+- The classifier depends on the quality and coverage of the current Teachable Machine training data.
+- The app does not localize debris inside the image.
+- The app does not generate bounding boxes or segmentation masks.
+- The app does not run backend ML inference.
+- The app does not include authentication or role-based access.
+- Reviewer corrections are stored, but they do not automatically retrain the model.
+- Dataset licensing must be checked before using external Kaggle data for training.
+
+## Roadmap
+
+Near-term:
+
+- Collect more local Ghana gutter/drainage drone images
+- Retrain the Teachable Machine model with better class balance
+- Add a polished screenshot set for the portfolio README
+- Improve test coverage around API routes and dashboard state
+- Add a reviewer-focused route if the workflow grows
+
+Later:
+
+- Authentication and role-based review permissions
+- PDF reports for inspection jobs
+- GPS/location metadata
+- Training feedback workflow from corrected records
+- YOLOv8 classification evaluation
+- YOLOv8 object detection with backend inference and bounding-box overlays
+
+## Local Setup
+
+Install dependencies:
 
 ```bash
 npm install
+```
+
+Run the development server:
+
+```bash
 npm run dev
 ```
 
@@ -47,108 +166,52 @@ Open:
 http://localhost:3000
 ```
 
-## Scripts
+Run quality checks:
 
 ```bash
-npm run dev      # Start local development server
-npm run lint     # Run ESLint
-npm run build    # Run production build and type checks
-npm run start    # Start the production server locally
+npm run check
 ```
 
-## Project Structure
+## Environment Variables
 
-```txt
-urbanflow-mvp/
-├── components/
-│   └── GutterClassifier.tsx
-├── docs/
-│   ├── ARCHITECTURE.md
-│   ├── DEPLOYMENT.md
-│   ├── MODEL.md
-│   ├── ROADMAP.md
-│   └── SUPABASE.md
-├── lib/
-│   ├── inspections/
-│   └── supabase/
-├── pages/
-│   ├── _app.tsx
-│   ├── _document.tsx
-│   ├── api/
-│   └── index.tsx
-├── public/
-│   ├── model/
-│   │   ├── metadata.json
-│   │   ├── model.json
-│   │   └── weights.bin
-│   └── social-preview.png
-├── styles/
-│   └── globals.css
-├── next.config.ts
-├── package.json
-└── README.md
+Create `.env.local` for local Supabase persistence:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_INSPECTION_BUCKET=inspection-images
 ```
 
-## Model Files
+Notes:
 
-The model is loaded from:
-
-```txt
-public/model/model.json
-public/model/metadata.json
-public/model/weights.bin
-```
-
-Keep those files committed if you want the deployed app to work without external model hosting.
-
-See [docs/MODEL.md](docs/MODEL.md) for model training, export, and class-naming guidance.
-
-## Current UX Flow
-
-1. User optionally creates or selects an inspection job with title, location, and notes.
-2. User uploads one or multiple gutter/drainage images.
-3. App previews the selected image locally.
-4. App prepares the model if it is not ready yet.
-5. User runs one-image analysis or a browser-based batch.
-6. App checks image quality for each image.
-7. App displays verdicts, probabilities, and batch progress.
-8. App saves analyzed inspection records through the API routes, including `job_id` when a job is active.
-9. Job summary cards show total, clean, choked, and review counts.
-10. Flagged records stay in the review queue and reviewer corrections are saved with `PATCH /api/inspections/[id]`.
-
-If Supabase is configured, inspection jobs and records are saved and loaded through the API routes. If Supabase is not configured yet, the app gracefully falls back to a browser-only queue for the current session.
-
-## Deployment
-
-The project is linked to Vercel and currently deploys to:
-
-```txt
-https://urbanflow-mvp.vercel.app
-```
-
-Deploy production:
-
-```bash
-vercel --prod
-```
-
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for deployment notes, model caching, and share-preview behavior.
-
-## Important Notes
-
-- The model runs in the browser, so uploaded images are not sent to a backend in the current MVP.
-- Images and records are sent to Supabase only through server-side API routes after Supabase environment variables, tables, and storage are configured.
-- Backend ML inference is intentionally not part of this MVP yet; batch processing still uses the existing browser model.
-- TensorFlow.js is lazy-loaded so the main page can render before the ML bundle is needed.
-- Model assets are cached with long-lived headers in `next.config.ts`.
-- The app is an MVP and should not be used as a final inspection authority without human review.
+- `SUPABASE_SERVICE_ROLE_KEY` must stay server-side.
+- Do not expose service keys with a `NEXT_PUBLIC_` prefix.
+- The app can still run in local-only mode when Supabase is not configured.
 
 ## Documentation
 
+- [Case Study](docs/CASE_STUDY.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [Demo Guide](docs/DEMO_GUIDE.md)
+- [Screenshots Guide](docs/SCREENSHOTS.md)
 - [Model Guide](docs/MODEL.md)
+- [Model Improvement Plan](docs/MODEL_IMPROVEMENT_PLAN.md)
+- [Kaggle Notebook Feasibility](docs/KAGGLE_NOTEBOOK_FEASIBILITY.md)
+- [Supabase Setup](docs/SUPABASE.md)
 - [Deployment](docs/DEPLOYMENT.md)
 - [Roadmap](docs/ROADMAP.md)
-- [Supabase Setup](docs/SUPABASE.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security](SECURITY.md)
+
+## Author / Role
+
+Built by Prince Amissah as a civic-tech AI product MVP.
+
+Project role:
+
+- Product concept and workflow design
+- Frontend engineering with Next.js and React
+- Browser AI integration with TensorFlow.js and Teachable Machine
+- Supabase persistence design
+- Human review workflow and inspection job system
+- Portfolio documentation and deployment readiness
