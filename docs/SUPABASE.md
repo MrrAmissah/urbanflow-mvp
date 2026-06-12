@@ -1,6 +1,6 @@
 # Supabase Setup
 
-This project can persist inspection records and uploaded images with Supabase.
+This project can persist analyzed inspection records and uploaded images with Supabase.
 
 ## Environment Variables
 
@@ -61,4 +61,8 @@ POST   /api/inspections
 PATCH  /api/inspections/:id
 ```
 
-If Supabase is not configured, the app falls back to the browser-only queue.
+`GET /api/inspections` powers the persistent inspection records dashboard. `POST /api/inspections` is called after browser-based single-image or batch analysis. `PATCH /api/inspections/:id` saves reviewer corrections.
+
+If Supabase is not configured, the app falls back to the browser-only queue for the current session.
+
+The Supabase service role key must stay server-side. Do not add it to browser code or expose it with a `NEXT_PUBLIC_` prefix.

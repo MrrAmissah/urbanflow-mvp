@@ -6,7 +6,7 @@ import type { CreateInspectionPayload, InspectionRecord } from '@/lib/inspection
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '8mb',
+      sizeLimit: '15mb',
     },
   },
 };
@@ -77,7 +77,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .from('inspection_records')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(25);
+        .limit(500);
 
       if (error) throw error;
 

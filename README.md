@@ -12,11 +12,13 @@ The current MVP focuses on fast validation:
 
 - Upload and preview gutter/drainage images
 - Run a Teachable Machine image model in the browser
+- Process multiple uploaded images one by one in a browser batch
 - Classify gutters as clean, choked, unclear, or out of context
 - Display confidence scores and class probabilities
 - Check image quality before trusting the result
-- Route flagged cases into an inspection review queue
-- Persist flagged inspections with Supabase when configured
+- Route flagged cases into an inspection review queue with reviewer corrections
+- Persist analyzed inspection records with Supabase when configured
+- Review saved inspection history with filters and CSV export
 - Provide Open Graph preview metadata for link sharing
 
 ## Tech Stack
@@ -102,15 +104,16 @@ See [docs/MODEL.md](docs/MODEL.md) for model training, export, and class-naming 
 
 ## Current UX Flow
 
-1. User uploads a gutter or drainage image.
-2. App previews the image locally.
+1. User uploads one or multiple gutter/drainage images.
+2. App previews the selected image locally.
 3. App prepares the model if it is not ready yet.
-4. User runs analysis.
-5. App checks image quality.
-6. App displays a verdict and probabilities.
-7. Only flagged cases are added to the review queue.
+4. User runs one-image analysis or a browser-based batch.
+5. App checks image quality for each image.
+6. App displays verdicts, probabilities, and batch progress.
+7. App saves analyzed inspection records through the API routes.
+8. Flagged records stay in the review queue and reviewer corrections are saved with `PATCH /api/inspections/[id]`.
 
-If Supabase is configured, flagged inspections are saved and loaded through the API routes. If Supabase is not configured yet, the app gracefully falls back to a browser-only review queue.
+If Supabase is configured, inspection records are saved and loaded through the API routes. If Supabase is not configured yet, the app gracefully falls back to a browser-only queue for the current session.
 
 ## Deployment
 
@@ -131,7 +134,8 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for deployment notes, model caching
 ## Important Notes
 
 - The model runs in the browser, so uploaded images are not sent to a backend in the current MVP.
-- Flagged images are sent to Supabase only after Supabase environment variables and tables are configured.
+- Images and records are sent to Supabase only through server-side API routes after Supabase environment variables, tables, and storage are configured.
+- Backend ML inference is intentionally not part of this MVP yet; batch processing still uses the existing browser model.
 - TensorFlow.js is lazy-loaded so the main page can render before the ML bundle is needed.
 - Model assets are cached with long-lived headers in `next.config.ts`.
 - The app is an MVP and should not be used as a final inspection authority without human review.

@@ -6,13 +6,14 @@ Team Urbanflow is a client-heavy Next.js MVP. The page shell is rendered by Next
 
 ```txt
 User browser
-  ├─ Upload image
+  ├─ Upload one image or a multi-image batch
   ├─ Preview image locally
   ├─ Lazy-load TensorFlow.js + Teachable Machine
   ├─ Load model from /public/model
-  ├─ Run image quality checks
-  ├─ Run prediction
-  └─ Display verdict / route flagged item to review queue
+  ├─ Run image quality checks per image
+  ├─ Run prediction per image
+  ├─ Save analyzed records through Next.js API routes
+  └─ Display verdicts, dashboard filters, CSV export, and review queue
 ```
 
 ## Key Files
@@ -22,7 +23,7 @@ pages/index.tsx
   Page metadata, social preview tags, model preloads, and app shell.
 
 components/GutterClassifier.tsx
-  Main interactive upload, analysis, verdict, quality-check, and review queue logic.
+  Main interactive upload, browser batch analysis, verdict, quality-check, dashboard, and review queue logic.
 
 public/model/*
   Exported Google Teachable Machine TensorFlow.js model.
@@ -36,10 +37,10 @@ next.config.ts
 
 ## Current Data Model
 
-The MVP supports two queue modes:
+The MVP supports two persistence modes:
 
-- Supabase mode: flagged inspections are saved through API routes and loaded on page open.
-- Local-only mode: if Supabase is not configured, flagged inspections stay in browser state only.
+- Supabase mode: analyzed inspections are saved through API routes and loaded on page open.
+- Local-only mode: if Supabase is not configured, analyzed inspections stay in browser state only.
 
 The UI uses this review item shape:
 
@@ -56,7 +57,7 @@ type ReviewItem = {
 }
 ```
 
-In Supabase mode, records live in `inspection_records`. In local-only mode, the queue resets on page refresh.
+In Supabase mode, records live in `inspection_records` and images can be stored in Supabase Storage. In local-only mode, the queue resets on page refresh.
 
 ## Model Loading Strategy
 
@@ -84,7 +85,7 @@ Current implementation:
 
 ```txt
 Supabase Storage
-  Stores flagged inspection images.
+  Stores inspection images.
 
 Supabase Postgres
   Stores inspection records, statuses, reviewer corrections, timestamps, and image URLs.
@@ -92,5 +93,7 @@ Supabase Postgres
 Next.js API routes
   Keep the Supabase service role key on the server.
 ```
+
+The browser still performs all Teachable Machine inference. Backend ML inference is a future architecture step, not part of the current implementation.
 
 See [SUPABASE.md](SUPABASE.md) for setup details.

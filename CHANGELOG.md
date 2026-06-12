@@ -13,3 +13,8 @@
 - Added long-lived model asset caching.
 - Added project documentation for GitHub readiness.
 - Added Supabase-ready API routes and setup guide for persisted inspections.
+- Added browser-based batch inspection processing while keeping Teachable Machine inference on the client.
+- Added batch progress counts for total, processed, pending, and failed images.
+- Added a persistent inspection records dashboard loaded from `GET /api/inspections`.
+- Added dashboard filters and CSV export.
+- Added reviewer correction persistence through `PATCH /api/inspections/[id]`.

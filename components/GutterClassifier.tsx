@@ -1,16 +1,19 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Camera,
-  CheckCircle2,
   AlertCircle,
-  Lightbulb,
-  ClipboardList,
-  FlaskConical,
+  Camera,
   Check,
-  ShieldAlert,
+  CheckCircle2,
+  ClipboardList,
+  Download,
+  FileStack,
+  Filter,
+  FlaskConical,
   ImageOff,
+  RefreshCw,
+  ShieldAlert,
   SlidersHorizontal,
   XCircle,
 } from 'lucide-react';
@@ -18,6 +21,7 @@ import type {
   CreateInspectionPayload,
   InspectionRecord,
   InspectionStatus,
+  InspectionVerdict,
 } from '@/lib/inspections/types';
 
 interface Prediction {
@@ -40,12 +44,37 @@ interface ReviewItem {
   verdict: Verdict;
   label: string;
   confidence: number;
-  status: 'Needs review' | 'Approved' | 'Corrected';
+  status: InspectionStatus;
   correction?: string;
 }
 
-type Verdict = 'clean' | 'choked' | 'out-of-context' | 'manual-review' | 'ready';
+interface AnalysisResult {
+  file: File;
+  imageDataUrl: string;
+  predictions: Prediction[];
+  quality: QualityReport;
+  verdict: Verdict;
+  confidence: number;
+  label: string;
+  status: InspectionStatus;
+}
+
+type BatchPreview = {
+  name: string;
+  url: string;
+};
+
+type Verdict = InspectionVerdict;
 type VerdictTone = 'safe' | 'warning' | 'danger' | 'review' | 'neutral';
+type FilterKey =
+  | 'all'
+  | 'choked'
+  | 'clean'
+  | 'needs-review'
+  | 'approved'
+  | 'out-of-context'
+  | 'low-confidence';
+type PersistenceStatus = 'checking' | 'connected' | 'local-only';
 type WindowWithIdleCallback = Window &
   typeof globalThis & {
     requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
@@ -58,10 +87,7 @@ type GutterModel = {
 let cachedModel: GutterModel | null = null;
 let modelLoadPromise: Promise<GutterModel> | null = null;
 
-const verdictContent: Record<
-  Verdict,
-  { title: string; description: string; tone: VerdictTone }
-> = {
+const verdictContent: Record<Verdict, { title: string; description: string; tone: VerdictTone }> = {
   ready: {
     title: 'Ready for inspection',
     description: 'Upload and analyze a drone gutter image.',
@@ -88,6 +114,16 @@ const verdictContent: Record<
     tone: 'review',
   },
 };
+
+const filters: { key: FilterKey; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'choked', label: 'Choked' },
+  { key: 'clean', label: 'Clean' },
+  { key: 'needs-review', label: 'Needs Review' },
+  { key: 'approved', label: 'Approved' },
+  { key: 'out-of-context', label: 'Out of Context' },
+  { key: 'low-confidence', label: 'Low Confidence' },
+];
 
 function getVerdictToneClasses(tone: VerdictTone) {
   if (tone === 'safe') return 'bg-green-50 border-2 border-green-200 text-green-900';
@@ -162,10 +198,13 @@ async function createInspectionRecord(payload: CreateInspectionPayload) {
   });
 
   if (response.status === 503) return null;
-  if (!response.ok) throw new Error('Could not save inspection record.');
+  if (!response.ok) {
+    const data = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(data?.message || 'Could not save inspection record.');
+  }
 
   const data = (await response.json()) as { record?: InspectionRecord };
-  return data.record ? inspectionRecordToReviewItem(data.record) : null;
+  return data.record ?? null;
 }
 
 async function updateInspectionRecord(
@@ -183,10 +222,13 @@ async function updateInspectionRecord(
   });
 
   if (response.status === 503) return null;
-  if (!response.ok) throw new Error('Could not update inspection record.');
+  if (!response.ok) {
+    const data = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(data?.message || 'Could not update inspection record.');
+  }
 
   const data = (await response.json()) as { record?: InspectionRecord };
-  return data.record ? inspectionRecordToReviewItem(data.record) : null;
+  return data.record ?? null;
 }
 
 function mapPredictionToVerdict(
@@ -224,6 +266,10 @@ function mapPredictionToVerdict(
   if (label.includes('clean') || label.includes('clear')) return 'clean';
 
   return 'manual-review';
+}
+
+function getInitialStatus(verdict: Verdict): InspectionStatus {
+  return verdict === 'clean' ? 'Approved' : 'Needs review';
 }
 
 async function inspectImageQuality(file: File): Promise<QualityReport> {
@@ -302,6 +348,80 @@ async function loadGutterModel(): Promise<GutterModel> {
   return modelLoadPromise;
 }
 
+function readImageDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => resolve(event.target?.result as string);
+    reader.onerror = () => reject(new Error('Could not read image.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImageElement(src: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Failed to load image for analysis.'));
+    image.src = src;
+  });
+}
+
+function filterRecords(records: InspectionRecord[], filter: FilterKey, threshold: number) {
+  return records.filter((record) => {
+    if (filter === 'all') return true;
+    if (filter === 'choked') return record.verdict === 'choked';
+    if (filter === 'clean') return record.verdict === 'clean';
+    if (filter === 'needs-review') return record.status === 'Needs review';
+    if (filter === 'approved') return record.status === 'Approved';
+    if (filter === 'out-of-context') {
+      return record.verdict === 'out-of-context' || record.correction === 'Out of context';
+    }
+    if (filter === 'low-confidence') return record.confidence < threshold || record.verdict === 'manual-review';
+    return true;
+  });
+}
+
+function escapeCsv(value: string | number | null | undefined) {
+  const stringValue = String(value ?? '');
+  if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+    return `"${stringValue.replace(/"/g, '""')}"`;
+  }
+  return stringValue;
+}
+
+function downloadCsv(records: InspectionRecord[]) {
+  const headers = [
+    'id',
+    'file_name',
+    'verdict',
+    'label',
+    'confidence',
+    'status',
+    'correction',
+    'image_url',
+    'created_at',
+  ];
+  const rows = records.map((record) => [
+    record.id,
+    record.fileName,
+    record.verdict,
+    record.label,
+    record.confidence,
+    record.status,
+    record.correction ?? '',
+    record.imageUrl ?? '',
+    record.createdAt ?? '',
+  ]);
+  const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `urbanflow-inspections-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function GutterClassifier() {
   const [model, setModel] = useState<GutterModel | null>(null);
   const [modelLoading, setModelLoading] = useState(true);
@@ -309,17 +429,47 @@ export default function GutterClassifier() {
   const [modelLoadTime, setModelLoadTime] = useState<number | null>(null);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [batchPreviews, setBatchPreviews] = useState<BatchPreview[]>([]);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [predictions, setPredictions] = useState<Prediction[] | null>(null);
   const [qualityReport, setQualityReport] = useState<QualityReport | null>(null);
-  const [reviewQueue, setReviewQueue] = useState<ReviewItem[]>([]);
+  const [records, setRecords] = useState<InspectionRecord[]>([]);
   const [threshold, setThreshold] = useState(70);
   const [analyzing, setAnalyzing] = useState(false);
+  const [batchProcessing, setBatchProcessing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
-  const [persistenceStatus, setPersistenceStatus] = useState<'checking' | 'connected' | 'local-only'>('checking');
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [batchErrors, setBatchErrors] = useState<string[]>([]);
+  const [persistenceStatus, setPersistenceStatus] = useState<PersistenceStatus>('checking');
+  const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
+  const [batchProgress, setBatchProgress] = useState({
+    total: 0,
+    processed: 0,
+    failed: 0,
+  });
 
   const imageRef = useRef<HTMLImageElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const batchPreviewUrlsRef = useRef<string[]>([]);
+
+  const reviewQueue = useMemo(
+    () =>
+      records
+        .filter((record) => record.status === 'Needs review')
+        .map(inspectionRecordToReviewItem),
+    [records]
+  );
+  const filteredRecords = useMemo(
+    () => filterRecords(records, activeFilter, threshold),
+    [records, activeFilter, threshold]
+  );
+  const topPrediction = predictions?.[0];
+  const verdict = mapPredictionToVerdict(topPrediction, qualityReport, threshold);
+  const verdictInfo = verdictContent[verdict];
+  const confidence = topPrediction ? topPrediction.probability * 100 : 0;
+  const needsReviewCount = records.filter((item) => item.status === 'Needs review').length;
+  const pendingCount = Math.max(batchProgress.total - batchProgress.processed - batchProgress.failed, 0);
 
   useEffect(() => {
     let isMounted = true;
@@ -361,75 +511,76 @@ export default function GutterClassifier() {
     };
   }, []);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadPersistedQueue = async () => {
-      try {
-        const response = await fetch('/api/inspections');
-        if (response.status === 503) {
-          if (isMounted) setPersistenceStatus('local-only');
-          return;
-        }
-
-        if (!response.ok) throw new Error('Could not load inspections.');
-
-        const data = (await response.json()) as { records?: InspectionRecord[] };
-        if (!isMounted) return;
-
-        setPersistenceStatus('connected');
-        setReviewQueue((data.records ?? []).map(inspectionRecordToReviewItem));
-      } catch (error) {
-        console.warn('Supabase inspection queue unavailable:', error);
-        if (isMounted) setPersistenceStatus('local-only');
+  const refreshRecords = useCallback(async () => {
+    try {
+      const response = await fetch('/api/inspections');
+      if (response.status === 503) {
+        setPersistenceStatus('local-only');
+        return;
       }
-    };
 
-    loadPersistedQueue();
+      if (!response.ok) throw new Error('Could not load inspections.');
 
+      const data = (await response.json()) as { records?: InspectionRecord[] };
+      setPersistenceStatus('connected');
+      setRecords(data.records ?? []);
+    } catch (error) {
+      console.warn('Supabase inspection queue unavailable:', error);
+      setPersistenceStatus('local-only');
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void refreshRecords();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [refreshRecords]);
+
+  useEffect(() => {
     return () => {
-      isMounted = false;
+      batchPreviewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     };
   }, []);
 
-  const topPrediction = predictions?.[0];
-  const verdict = mapPredictionToVerdict(topPrediction, qualityReport, threshold);
-  const verdictInfo = verdictContent[verdict];
-  const confidence = topPrediction ? topPrediction.probability * 100 : 0;
-  const needsReviewCount = reviewQueue.filter((item) => item.status === 'Needs review').length;
-
   const createImagePreview = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setImagePreview(event.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+    readImageDataUrl(file)
+      .then((dataUrl) => setImagePreview(dataUrl))
+      .catch(() => setAnalysisError('Could not preview this image.'));
   };
 
-  const readImageDataUrl = (file: File) =>
-    new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (event) => resolve(event.target?.result as string);
-      reader.onerror = () => reject(new Error('Could not read image for storage.'));
-      reader.readAsDataURL(file);
-    });
+  const replaceBatchPreviews = (files: File[]) => {
+    batchPreviewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
 
-  const selectFile = (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      setAnalysisError('Please upload a JPG, PNG, or WebP image.');
+    const previews = files.slice(0, 10).map((file) => ({
+      name: file.name,
+      url: URL.createObjectURL(file),
+    }));
+
+    batchPreviewUrlsRef.current = previews.map((preview) => preview.url);
+    setBatchPreviews(previews);
+  };
+
+  const selectFiles = (files: File[]) => {
+    const imageFiles = files.filter((file) => file.type.startsWith('image/'));
+    if (!imageFiles.length) {
+      setAnalysisError('Please upload JPG, PNG, or WebP images.');
       return;
     }
 
-    setSelectedFile(file);
+    setSelectedFiles(imageFiles);
+    replaceBatchPreviews(imageFiles);
+    setSelectedFile(imageFiles[0]);
     setAnalysisError(null);
+    setSaveError(null);
     setPredictions(null);
     setQualityReport(null);
-    createImagePreview(file);
+    createImagePreview(imageFiles[0]);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) selectFile(file);
+    selectFiles(Array.from(e.target.files ?? []));
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -440,107 +591,171 @@ export default function GutterClassifier() {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    selectFiles(Array.from(e.dataTransfer.files ?? []));
+  };
 
-    const file = e.dataTransfer.files?.[0];
-    if (file) selectFile(file);
+  const analyzeFile = async (file: File, activeModel: GutterModel): Promise<AnalysisResult> => {
+    const imageDataUrl = await readImageDataUrl(file);
+    const image = await loadImageElement(imageDataUrl);
+    const quality = await inspectImageQuality(file);
+    const results = await activeModel.predict(image);
+    const predictionArray = Array.from(results)
+      .map((p) => ({
+        className: p.className,
+        probability: p.probability,
+      }))
+      .sort((a, b) => b.probability - a.probability);
+    const top = predictionArray[0];
+    const nextVerdict = mapPredictionToVerdict(top, quality, threshold);
+    const nextConfidence = Math.round((top?.probability ?? 0) * 100);
+
+    return {
+      file,
+      imageDataUrl,
+      predictions: predictionArray,
+      quality,
+      verdict: nextVerdict,
+      confidence: nextConfidence,
+      label: top?.className ?? 'No prediction',
+      status: getInitialStatus(nextVerdict),
+    };
+  };
+
+  const addOrReplaceRecord = (record: InspectionRecord) => {
+    setRecords((items) => [record, ...items.filter((item) => item.id !== record.id)]);
+  };
+
+  const saveAnalysisResult = async (result: AnalysisResult) => {
+    const localRecord: InspectionRecord = {
+      id: crypto.randomUUID(),
+      imageUrl: null,
+      fileName: result.file.name,
+      verdict: result.verdict,
+      label: result.label,
+      confidence: result.confidence,
+      status: result.status,
+      correction: result.status === 'Approved' ? 'Approved' : null,
+      quality: { ...result.quality },
+      createdAt: new Date().toISOString(),
+    };
+
+    addOrReplaceRecord(localRecord);
+
+    try {
+      const savedItem = await createInspectionRecord({
+        imageDataUrl: result.imageDataUrl,
+        fileName: result.file.name,
+        verdict: result.verdict,
+        label: result.label,
+        confidence: result.confidence,
+        status: result.status,
+        correction: result.status === 'Approved' ? 'Approved' : null,
+        quality: { ...result.quality },
+      });
+
+      if (savedItem) {
+        setPersistenceStatus('connected');
+        setRecords((items) => [savedItem, ...items.filter((item) => item.id !== localRecord.id)]);
+      } else {
+        setPersistenceStatus('local-only');
+      }
+    } catch (error) {
+      console.warn('Inspection record was not persisted:', error);
+      setSaveError(error instanceof Error ? error.message : 'Could not save inspection record.');
+      setPersistenceStatus('local-only');
+    }
   };
 
   const handleAnalyze = async () => {
-    if (!imageRef.current || !selectedFile) return;
+    if (!selectedFile) return;
 
     try {
       setAnalyzing(true);
       setAnalysisError(null);
+      setSaveError(null);
+      setBatchErrors([]);
       const activeModel = model ?? (await loadGutterModel());
       setModel(activeModel);
       setModelLoading(false);
 
-      await new Promise((resolve, reject) => {
-        if (imageRef.current!.complete) {
-          resolve(null);
-        } else {
-          imageRef.current!.onload = () => resolve(null);
-          imageRef.current!.onerror = () =>
-            reject(new Error('Failed to load image'));
-        }
-      });
-
-      const quality = await inspectImageQuality(selectedFile);
-      setQualityReport(quality);
-
-      const results = await activeModel.predict(imageRef.current);
-      const predictionArray = Array.from(results)
-        .map((p) => ({
-          className: p.className,
-          probability: p.probability,
-        }))
-        .sort((a, b) => b.probability - a.probability);
-
-      setPredictions(predictionArray);
-
-      const top = predictionArray[0];
-      const nextVerdict = mapPredictionToVerdict(top, quality, threshold);
-      const nextConfidence = Math.round((top?.probability ?? 0) * 100);
-
-      if (nextVerdict !== 'clean') {
-        const localItem: ReviewItem = {
-          id: crypto.randomUUID(),
-          fileName: selectedFile.name,
-          verdict: nextVerdict,
-          label: top?.className ?? 'No prediction',
-          confidence: nextConfidence,
-          status: 'Needs review',
-        };
-
-        setReviewQueue((items) => [localItem, ...items.slice(0, 24)]);
-
-        try {
-          const savedItem = await createInspectionRecord({
-            imageDataUrl: await readImageDataUrl(selectedFile),
-            fileName: selectedFile.name,
-            verdict: nextVerdict,
-            label: top?.className ?? 'No prediction',
-            confidence: nextConfidence,
-            status: 'Needs review',
-            quality: { ...quality },
-          });
-
-          if (savedItem) {
-            setPersistenceStatus('connected');
-            setReviewQueue((items) =>
-              items.map((item) => (item.id === localItem.id ? savedItem : item))
-            );
-          } else {
-            setPersistenceStatus('local-only');
-          }
-        } catch (error) {
-          console.warn('Inspection record was not persisted:', error);
-          setPersistenceStatus('local-only');
-        }
-      }
+      const result = await analyzeFile(selectedFile, activeModel);
+      setImagePreview(result.imageDataUrl);
+      setQualityReport(result.quality);
+      setPredictions(result.predictions);
+      await saveAnalysisResult(result);
     } catch (error) {
       console.error('Error analyzing image:', error);
-      setAnalysisError('Failed to analyze image. Please try another clear gutter photo.');
+      setAnalysisError(error instanceof Error ? error.message : 'Failed to analyze image.');
     } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const handleBatchAnalyze = async () => {
+    if (!selectedFiles.length) return;
+
+    setBatchProcessing(true);
+    setAnalyzing(true);
+    setAnalysisError(null);
+    setSaveError(null);
+    setBatchErrors([]);
+    setBatchProgress({ total: selectedFiles.length, processed: 0, failed: 0 });
+
+    try {
+      const activeModel = model ?? (await loadGutterModel());
+      setModel(activeModel);
+      setModelLoading(false);
+
+      for (const file of selectedFiles) {
+        try {
+          const result = await analyzeFile(file, activeModel);
+          setSelectedFile(file);
+          setImagePreview(result.imageDataUrl);
+          setQualityReport(result.quality);
+          setPredictions(result.predictions);
+          await saveAnalysisResult(result);
+          setBatchProgress((progress) => ({
+            ...progress,
+            processed: progress.processed + 1,
+          }));
+        } catch (error) {
+          console.error(`Batch analysis failed for ${file.name}:`, error);
+          const message = error instanceof Error ? error.message : 'Unknown processing error.';
+          setBatchErrors((errors) => [...errors, `${file.name}: ${message}`]);
+          setBatchProgress((progress) => ({
+            ...progress,
+            failed: progress.failed + 1,
+          }));
+        }
+      }
+    } finally {
+      setBatchProcessing(false);
       setAnalyzing(false);
     }
   };
 
   const handleClear = () => {
     setSelectedFile(null);
+    setSelectedFiles([]);
     setImagePreview(null);
     setPredictions(null);
     setQualityReport(null);
     setAnalysisError(null);
+    setSaveError(null);
+    setBatchErrors([]);
+    setBatchProgress({ total: 0, processed: 0, failed: 0 });
+    batchPreviewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    batchPreviewUrlsRef.current = [];
+    setBatchPreviews([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const updateReviewItem = async (id: string, correction: string) => {
     const nextStatus = correction === 'Approved' ? 'Approved' : 'Corrected';
-    const currentItem = reviewQueue.find((item) => item.id === id);
+    const currentItem = records.find((item) => item.id === id);
     const nextVerdict = getCorrectedVerdict(correction, currentItem?.verdict ?? 'manual-review');
 
-    setReviewQueue((items) =>
+    setRecords((items) =>
       items.map((item) =>
         item.id === id
           ? {
@@ -557,29 +772,28 @@ export default function GutterClassifier() {
       const savedItem = await updateInspectionRecord(id, nextStatus, correction, nextVerdict);
       if (savedItem) {
         setPersistenceStatus('connected');
-        setReviewQueue((items) =>
-          items.map((item) => (item.id === id ? savedItem : item))
-        );
+        setRecords((items) => items.map((item) => (item.id === id ? savedItem : item)));
       }
     } catch (error) {
       console.warn('Inspection update was not persisted:', error);
+      setSaveError(error instanceof Error ? error.message : 'Could not save reviewer correction.');
       setPersistenceStatus('local-only');
     }
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-4 py-8">
+    <div className="w-full max-w-6xl mx-auto px-4 py-8">
       <div className="mb-12 text-center">
         <h1 className="text-4xl font-bold text-slate-900 mb-2">Team Urbanflow</h1>
         <div className="inline-block px-4 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-semibold mb-4">
           AI-powered gutter inspection
         </div>
-        <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-          Upload a drone image of a gutter and let our trained AI model classify whether it appears choked or clean.
+        <p className="text-lg text-slate-600 max-w-3xl mx-auto">
+          Upload one image for a quick check or process a batch of drone gutter photos while the current browser model stays stable.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 xl:grid-cols-[420px_minmax(0,1fr)] gap-8">
         <div className="space-y-6">
           <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-slate-900 mb-4">Model Status</h2>
@@ -628,13 +842,12 @@ export default function GutterClassifier() {
               className="mt-3 w-full accent-blue-600"
             />
             <p className="mt-3 text-xs text-slate-500">
-              Results below this threshold, blurry images, or out-of-context classes are routed to manual review.
+              Low confidence, poor quality, and out-of-context classes are routed to review.
             </p>
           </div>
 
           <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Upload Image</h2>
-
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Upload Images</h2>
             <div
               onDragOver={handleDragOver}
               onDrop={handleDrop}
@@ -643,6 +856,7 @@ export default function GutterClassifier() {
               <input
                 ref={fileInputRef}
                 type="file"
+                multiple
                 accept="image/jpeg,image/jpg,image/png,image/webp"
                 onChange={handleFileSelect}
                 className="hidden"
@@ -650,50 +864,100 @@ export default function GutterClassifier() {
               />
               <label htmlFor="file-upload" className="cursor-pointer">
                 <Camera className="w-12 h-12 mx-auto mb-2 text-blue-600" />
-                <p className="text-slate-700 font-medium mb-1">Drag and drop your image here</p>
-                <p className="text-sm text-slate-500 mb-4">or click to select (JPG, PNG, WebP)</p>
+                <p className="text-slate-700 font-medium mb-1">Drag and drop images here</p>
+                <p className="text-sm text-slate-500 mb-4">or click to select one or many files</p>
               </label>
             </div>
 
-            {selectedFile && (
+            {selectedFiles.length > 0 && (
               <div className="mt-4 p-4 bg-slate-50 rounded-lg">
                 <p className="text-sm text-slate-600">
-                  <strong>Selected file:</strong> {selectedFile.name}
+                  <strong>Selected:</strong> {selectedFiles.length} image{selectedFiles.length === 1 ? '' : 's'}
                 </p>
+                <p className="text-xs text-slate-500 truncate">{selectedFile?.name}</p>
               </div>
             )}
 
-            <div className="flex gap-3 mt-6">
+            <div className="grid grid-cols-2 gap-3 mt-6">
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={analyzing}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
               >
-                Select Image
+                Select
               </button>
               <button
                 onClick={handleClear}
-                disabled={!selectedFile || analyzing}
-                className="flex-1 px-4 py-2 bg-slate-200 text-slate-700 rounded-lg font-semibold hover:bg-slate-300 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed transition-colors"
+                disabled={!selectedFiles.length || analyzing}
+                className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg font-semibold hover:bg-slate-300 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed transition-colors"
               >
                 Clear
               </button>
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+              <button
+                onClick={handleAnalyze}
+                disabled={!selectedFile || analyzing || Boolean(modelError)}
+                className="px-5 py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors shadow-sm"
+              >
+                {analyzing && !batchProcessing ? 'Analyzing...' : modelLoading ? 'Prepare & Analyze' : 'Analyze Current'}
+              </button>
+              <button
+                onClick={handleBatchAnalyze}
+                disabled={!selectedFiles.length || analyzing || Boolean(modelError)}
+                className="px-5 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors shadow-sm"
+              >
+                <FileStack className="inline w-4 h-4 mr-2" />
+                {batchProcessing ? 'Processing Batch...' : 'Process Batch'}
+              </button>
+            </div>
           </div>
 
-          <button
-            onClick={handleAnalyze}
-            disabled={!selectedFile || analyzing || Boolean(modelError)}
-            className="w-full px-6 py-3 bg-green-600 text-white rounded-lg font-bold text-lg hover:bg-green-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors shadow-sm"
-          >
-            {analyzing ? 'Analyzing...' : modelLoading ? 'Prepare & Analyze Image' : 'Analyze Image'}
-          </button>
+          <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Batch Progress</h2>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="bg-slate-50 rounded-lg p-3">
+                <p className="text-slate-500">Total</p>
+                <p className="font-mono text-xl font-bold text-slate-900">{batchProgress.total}</p>
+              </div>
+              <div className="bg-green-50 rounded-lg p-3">
+                <p className="text-green-700">Processed</p>
+                <p className="font-mono text-xl font-bold text-green-800">{batchProgress.processed}</p>
+              </div>
+              <div className="bg-blue-50 rounded-lg p-3">
+                <p className="text-blue-700">Pending</p>
+                <p className="font-mono text-xl font-bold text-blue-800">{pendingCount}</p>
+              </div>
+              <div className="bg-red-50 rounded-lg p-3">
+                <p className="text-red-700">Failed</p>
+                <p className="font-mono text-xl font-bold text-red-800">{batchProgress.failed}</p>
+              </div>
+            </div>
+            {batchProgress.total > 0 && (
+              <div className="mt-4 h-2 rounded-full bg-slate-100 overflow-hidden">
+                <div
+                  className="h-full bg-blue-600 transition-all"
+                  style={{
+                    width: `${Math.round(((batchProgress.processed + batchProgress.failed) / batchProgress.total) * 100)}%`,
+                  }}
+                ></div>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="space-y-6">
           {imagePreview && (
             <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-slate-900 mb-4">Image Preview</h2>
+              <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <h2 className="text-lg font-semibold text-slate-900">Image Preview</h2>
+                {selectedFiles.length > 1 && (
+                  <span className="text-sm font-semibold text-blue-700">
+                    {selectedFiles.length} images in batch
+                  </span>
+                )}
+              </div>
               <div className="bg-slate-100 rounded-lg overflow-hidden">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -703,13 +967,64 @@ export default function GutterClassifier() {
                   className="w-full h-auto max-h-96 object-contain"
                 />
               </div>
+
+              {batchPreviews.length > 1 && (
+                <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-slate-800">Batch preview</p>
+                    {selectedFiles.length > batchPreviews.length && (
+                      <p className="text-xs font-semibold text-slate-500">
+                        +{selectedFiles.length - batchPreviews.length} more
+                      </p>
+                    )}
+                  </div>
+                  <div className="overflow-x-auto overflow-y-hidden px-4 pb-5 pt-3">
+                    <div className="flex min-w-max items-end justify-center">
+                      {batchPreviews.map((preview, index) => {
+                        const middle = (batchPreviews.length - 1) / 2;
+                        const offset = index - middle;
+                        const rotation = offset * 5;
+                        const lift = Math.abs(offset) * 4;
+
+                        return (
+                          <button
+                            key={preview.url}
+                            type="button"
+                            onClick={() => {
+                              setSelectedFile(selectedFiles[index]);
+                              createImagePreview(selectedFiles[index]);
+                            }}
+                            className={`relative -mx-3 h-32 w-24 flex-shrink-0 overflow-hidden rounded-lg border-2 bg-white shadow-md transition-transform hover:-translate-y-3 hover:shadow-lg ${
+                              selectedFile === selectedFiles[index] ? 'border-blue-600' : 'border-white'
+                            }`}
+                            style={{
+                              transform: `rotate(${rotation}deg) translateY(${lift}px)`,
+                              zIndex: index + 1,
+                            }}
+                            title={preview.name}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={preview.url}
+                              alt={preview.name}
+                              className="h-full w-full object-cover"
+                            />
+                            <span className="absolute bottom-0 left-0 right-0 bg-slate-950/70 px-1.5 py-1 text-left text-[10px] font-semibold text-white">
+                              {index + 1}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {predictions && (
             <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-slate-900 mb-6">Analysis Results</h2>
-
+              <h2 className="text-lg font-semibold text-slate-900 mb-6">Current Analysis</h2>
               <div className={`rounded-lg p-6 mb-6 ${getVerdictToneClasses(verdictInfo.tone)}`}>
                 <div className="flex items-start gap-3">
                   {verdict === 'out-of-context' ? (
@@ -733,9 +1048,7 @@ export default function GutterClassifier() {
                 <div className="mb-6">
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-sm font-semibold text-slate-700">{topPrediction.className}</span>
-                    <span className="text-sm font-semibold text-slate-900">
-                      {confidence.toFixed(1)}%
-                    </span>
+                    <span className="text-sm font-semibold text-slate-900">{confidence.toFixed(1)}%</span>
                   </div>
                   <div className="w-full bg-slate-200 rounded-full h-2">
                     <div
@@ -746,35 +1059,23 @@ export default function GutterClassifier() {
                 </div>
               )}
 
-              <div>
-                <p className="text-sm font-semibold text-slate-700 mb-3">All Class Probabilities</p>
-                <div className="space-y-3">
-                  {predictions.map((pred, idx) => (
-                    <div key={`${pred.className}-${idx}`}>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-sm text-slate-700">{pred.className}</span>
-                        <span className="text-sm font-semibold text-slate-900">
-                          {(pred.probability * 100).toFixed(1)}%
-                        </span>
-                      </div>
-                      <div className="w-full bg-slate-200 rounded-full h-2">
-                        <div
-                          className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all"
-                          style={{ width: `${pred.probability * 100}%` }}
-                        ></div>
-                      </div>
+              <div className="space-y-3">
+                {predictions.map((pred, idx) => (
+                  <div key={`${pred.className}-${idx}`}>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-sm text-slate-700">{pred.className}</span>
+                      <span className="text-sm font-semibold text-slate-900">
+                        {(pred.probability * 100).toFixed(1)}%
+                      </span>
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
-                <p className="text-xs text-slate-600 flex items-center gap-2">
-                  <Lightbulb className="w-4 h-4 flex-shrink-0" />
-                  <span>
-                    <strong>Tip:</strong> Add training classes like out_of_context and blurry_or_unclear to improve this review logic.
-                  </span>
-                </p>
+                    <div className="w-full bg-slate-200 rounded-full h-2">
+                      <div
+                        className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all"
+                        style={{ width: `${pred.probability * 100}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -815,18 +1116,26 @@ export default function GutterClassifier() {
             </div>
           )}
 
-          {analysisError && (
+          {(analysisError || saveError || batchErrors.length > 0) && (
             <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
               <p className="text-red-800">
-                <strong>Error:</strong> {analysisError}
+                <strong>Error:</strong> {analysisError || saveError || 'Some images failed during batch processing.'}
               </p>
+              {batchErrors.length > 0 && (
+                <ul className="mt-3 space-y-1 text-sm text-red-700">
+                  {batchErrors.slice(0, 5).map((error) => (
+                    <li key={error}>{error}</li>
+                  ))}
+                  {batchErrors.length > 5 && <li>{batchErrors.length - 5} more failed item(s).</li>}
+                </ul>
+              )}
             </div>
           )}
         </div>
       </div>
 
-      <div className="mt-12 bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5">
+      <section className="mt-12 bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between mb-5">
           <div>
             <h3 className="text-lg font-semibold text-slate-900">Inspection Review Queue</h3>
             <p className="text-sm text-slate-500">{needsReviewCount} image(s) currently need review</p>
@@ -838,27 +1147,19 @@ export default function GutterClassifier() {
                   : 'Local-only queue until Supabase env vars and tables are ready.'}
             </p>
           </div>
-          <div className="grid grid-cols-3 rounded-lg border border-slate-200 overflow-hidden text-center text-sm">
-            <div className="px-3 py-2">
-              <p className="font-bold text-slate-900">{reviewQueue.length}</p>
-              <p className="text-xs text-slate-500">Total</p>
-            </div>
-            <div className="px-3 py-2 border-x border-slate-200">
-              <p className="font-bold text-amber-700">{needsReviewCount}</p>
-              <p className="text-xs text-slate-500">Review</p>
-            </div>
-            <div className="px-3 py-2">
-              <p className="font-bold text-green-700">
-                {reviewQueue.filter((item) => item.status === 'Approved').length}
-              </p>
-              <p className="text-xs text-slate-500">Approved</p>
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={refreshRecords}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
         </div>
 
         {reviewQueue.length === 0 ? (
           <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-            <p className="text-sm text-slate-600">Analyze an image to add it to the review queue.</p>
+            <p className="text-sm text-slate-600">No images currently need review.</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -881,22 +1182,14 @@ export default function GutterClassifier() {
                       <button
                         type="button"
                         onClick={() => updateReviewItem(item.id, 'Approved')}
-                        className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                          item.status === 'Approved'
-                            ? 'bg-green-700 text-white'
-                            : 'bg-green-600 text-white hover:bg-green-700'
-                        }`}
+                        className="px-3 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition-colors"
                       >
                         Approve
                       </button>
                       <button
                         type="button"
                         onClick={() => updateReviewItem(item.id, 'Out of context')}
-                        className={`px-3 py-2 rounded-lg border text-sm font-semibold transition-colors ${
-                          item.correction === 'Out of context'
-                            ? 'bg-red-600 text-white border-red-600'
-                            : 'bg-white text-red-700 border-red-200 hover:bg-red-100'
-                        }`}
+                        className="px-3 py-2 rounded-lg border bg-white text-red-700 border-red-200 text-sm font-semibold hover:bg-red-100 transition-colors"
                       >
                         <XCircle className="inline w-4 h-4 mr-1" />
                         Context
@@ -904,11 +1197,7 @@ export default function GutterClassifier() {
                       <button
                         type="button"
                         onClick={() => updateReviewItem(item.id, 'Choked gutter')}
-                        className={`px-3 py-2 rounded-lg border text-sm font-semibold transition-colors ${
-                          item.correction === 'Choked gutter'
-                            ? 'bg-amber-600 text-white border-amber-600'
-                            : 'bg-white text-amber-700 border-amber-200 hover:bg-amber-100'
-                        }`}
+                        className="px-3 py-2 rounded-lg border bg-white text-amber-700 border-amber-200 text-sm font-semibold hover:bg-amber-100 transition-colors"
                       >
                         Choked
                       </button>
@@ -919,13 +1208,90 @@ export default function GutterClassifier() {
             })}
           </div>
         )}
-      </div>
+      </section>
+
+      <section className="mt-8 bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-900">Inspection Records Dashboard</h3>
+            <p className="text-sm text-slate-500">{filteredRecords.length} of {records.length} record(s) shown</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => downloadCsv(filteredRecords)}
+            disabled={!filteredRecords.length}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed"
+          >
+            <Download className="w-4 h-4" />
+            Export CSV
+          </button>
+        </div>
+
+        <div className="mt-5 flex flex-wrap gap-2">
+          <Filter className="w-5 h-5 text-blue-600 mt-2" />
+          {filters.map((filter) => (
+            <button
+              key={filter.key}
+              type="button"
+              onClick={() => setActiveFilter(filter.key)}
+              className={`rounded-full border px-3 py-2 text-sm font-semibold transition-colors ${
+                activeFilter === filter.key
+                  ? 'border-blue-600 bg-blue-600 text-white'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-5 overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 text-slate-500">
+                <th className="py-3 pr-4 font-semibold">File</th>
+                <th className="py-3 pr-4 font-semibold">Verdict</th>
+                <th className="py-3 pr-4 font-semibold">Confidence</th>
+                <th className="py-3 pr-4 font-semibold">Status</th>
+                <th className="py-3 pr-4 font-semibold">Correction</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredRecords.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-6 text-center text-slate-500">
+                    No inspection records match this filter.
+                  </td>
+                </tr>
+              ) : (
+                filteredRecords.map((record) => (
+                  <tr key={record.id} className="border-b border-slate-100">
+                    <td className="py-3 pr-4 font-medium text-slate-900">
+                      {record.imageUrl ? (
+                        <a href={record.imageUrl} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline">
+                          {record.fileName}
+                        </a>
+                      ) : (
+                        record.fileName
+                      )}
+                    </td>
+                    <td className="py-3 pr-4 text-slate-700">{verdictContent[record.verdict]?.title ?? record.verdict}</td>
+                    <td className="py-3 pr-4 font-mono text-slate-900">{record.confidence}%</td>
+                    <td className="py-3 pr-4 text-slate-700">{record.status}</td>
+                    <td className="py-3 pr-4 text-slate-500">{record.correction ?? '-'}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <div className="mt-12 bg-slate-50 rounded-lg border border-slate-200 p-6">
         <h3 className="text-lg font-semibold text-slate-900 mb-3">MVP Scope & Future Improvements</h3>
         <p className="text-slate-700 mb-4">
-          <strong>Current capability:</strong> This MVP classifies the entire uploaded image, checks quality, and flags uncertain
-          or out-of-context submissions for review. It does <u>not</u> identify the exact blocked section of the gutter.
+          <strong>Current capability:</strong> This MVP processes single images or browser-based batches, checks quality,
+          saves inspection records, and flags uncertain or out-of-context submissions for review. It does <u>not</u> run backend inference yet.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -936,15 +1302,15 @@ export default function GutterClassifier() {
             <ul className="text-sm text-slate-600 space-y-1 ml-7">
               <li className="flex items-center gap-2">
                 <Check className="w-4 h-4 text-green-600" />
-                <span>Batch upload multiple images</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-green-600" />
                 <span>GPS location tagging</span>
               </li>
               <li className="flex items-center gap-2">
                 <Check className="w-4 h-4 text-green-600" />
-                <span>Persistent inspection history & reports</span>
+                <span>Persistent inspection history reports</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <Check className="w-4 h-4 text-green-600" />
+                <span>Backend batch processing when the MVP is ready</span>
               </li>
             </ul>
           </div>

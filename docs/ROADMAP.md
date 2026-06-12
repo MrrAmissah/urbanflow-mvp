@@ -3,23 +3,26 @@
 ## Current MVP
 
 - Upload a gutter/drainage image
+- Upload and process multiple images in a browser batch
 - Preview image locally
 - Run in-browser Teachable Machine classification
 - Display confidence and class probabilities
 - Check image quality
-- Route flagged cases into a browser-only review queue
+- Show batch progress for total, processed, pending, and failed images
+- Route flagged cases into a review queue
+- Persist inspection records with Supabase Postgres
+- Persist uploaded inspection images with Supabase Storage
+- Load a persistent inspection records dashboard
+- Filter records by verdict, status, out-of-context, and low-confidence states
+- Export inspection records as CSV
+- Save reviewer corrections with `PATCH /api/inspections/[id]`
 - Provide share preview metadata
 - Deploy on Vercel
-- Supabase-ready API routes for persisted flagged inspections
 
 ## Near-Term Improvements
 
-- Persist uploaded images with Supabase Storage
-- Persist inspection records with Supabase Postgres
-- Add an admin/reviewer page
-- Add inspection history filters
-- Add exportable CSV/PDF reports
-- Add batch upload
+- Split the inspection dashboard into a dedicated admin/reviewer page
+- Add exportable PDF reports
 - Add GPS metadata capture
 - Improve model classes for out-of-context and unclear images
 
@@ -45,8 +48,11 @@ Phase 2
   Supabase Postgres for inspection records
 
 Phase 3
-  Admin dashboard, reports, and reviewer workflow
+  Dedicated admin dashboard, reports, and reviewer workflow
 
 Phase 4
   Better ML model with detection or segmentation
+
+Phase 5
+  Backend batch processing when browser inference is no longer enough
 ```
