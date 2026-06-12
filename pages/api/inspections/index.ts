@@ -123,8 +123,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ message: 'Method not allowed.' });
   } catch (error) {
     console.error('Inspection API error:', error);
+    const setupMessage =
+      typeof error === 'object' && error !== null && 'message' in error
+        ? String((error as { message?: unknown }).message)
+        : null;
     return res.status(500).json({
-      message: error instanceof Error ? error.message : 'Inspection API failed.',
+      message: setupMessage || (error instanceof Error ? error.message : 'Inspection API failed.'),
     });
   }
 }
