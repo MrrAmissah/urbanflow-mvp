@@ -23,6 +23,7 @@
 # misc
 .DS_Store
 *.pem
+Team Urbanflow/
 
 # debug
 npm-debug.log*

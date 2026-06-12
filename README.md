@@ -1,40 +1,138 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/pages/api-reference/create-next-app).
+# Team Urbanflow
 
-## Getting Started
+AI-powered drone gutter inspection MVP built with Next.js, TensorFlow.js, and Google Teachable Machine.
 
-First, run the development server:
+Live app: https://urbanflow-mvp.vercel.app
+
+## Overview
+
+Team Urbanflow helps inspection teams upload drone gutter images, run an in-browser AI classification, and route uncertain or poor-quality results into a lightweight review queue.
+
+The current MVP focuses on fast validation:
+
+- Upload and preview gutter/drainage images
+- Run a Teachable Machine image model in the browser
+- Classify gutters as clean, choked, unclear, or out of context
+- Display confidence scores and class probabilities
+- Check image quality before trusting the result
+- Route flagged cases into an inspection review queue
+- Provide Open Graph preview metadata for link sharing
+
+## Tech Stack
+
+- Next.js 16 with the Pages Router
+- React 19
+- TypeScript
+- Tailwind CSS 4
+- TensorFlow.js
+- `@teachablemachine/image`
+- Lucide React icons
+- Vercel hosting
+
+## Quick Start
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open:
 
-You can start editing the page by modifying `pages/index.tsx`. The page auto-updates as you edit the file.
+```txt
+http://localhost:3000
+```
 
-[API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.ts`.
+## Scripts
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) instead of React pages.
+```bash
+npm run dev      # Start local development server
+npm run lint     # Run ESLint
+npm run build    # Run production build and type checks
+npm run start    # Start the production server locally
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/pages/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Project Structure
 
-## Learn More
+```txt
+urbanflow-mvp/
+├── components/
+│   └── GutterClassifier.tsx
+├── docs/
+│   ├── ARCHITECTURE.md
+│   ├── DEPLOYMENT.md
+│   ├── MODEL.md
+│   └── ROADMAP.md
+├── pages/
+│   ├── _app.tsx
+│   ├── _document.tsx
+│   └── index.tsx
+├── public/
+│   ├── model/
+│   │   ├── metadata.json
+│   │   ├── model.json
+│   │   └── weights.bin
+│   └── social-preview.png
+├── styles/
+│   └── globals.css
+├── next.config.ts
+├── package.json
+└── README.md
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Model Files
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn-pages-router) - an interactive Next.js tutorial.
+The model is loaded from:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```txt
+public/model/model.json
+public/model/metadata.json
+public/model/weights.bin
+```
 
-## Deploy on Vercel
+Keep those files committed if you want the deployed app to work without external model hosting.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+See [docs/MODEL.md](docs/MODEL.md) for model training, export, and class-naming guidance.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/pages/building-your-application/deploying) for more details.
+## Current UX Flow
+
+1. User uploads a gutter or drainage image.
+2. App previews the image locally.
+3. App prepares the model if it is not ready yet.
+4. User runs analysis.
+5. App checks image quality.
+6. App displays a verdict and probabilities.
+7. Only flagged cases are added to the review queue.
+
+The review queue is currently browser-only state. It is useful for demonstrating workflow behavior, but it does not persist across refreshes yet.
+
+## Deployment
+
+The project is linked to Vercel and currently deploys to:
+
+```txt
+https://urbanflow-mvp.vercel.app
+```
+
+Deploy production:
+
+```bash
+vercel --prod
+```
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for deployment notes, model caching, and share-preview behavior.
+
+## Important Notes
+
+- The model runs in the browser, so uploaded images are not sent to a backend in the current MVP.
+- TensorFlow.js is lazy-loaded so the main page can render before the ML bundle is needed.
+- Model assets are cached with long-lived headers in `next.config.ts`.
+- The app is an MVP and should not be used as a final inspection authority without human review.
+
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md)
+- [Model Guide](docs/MODEL.md)
+- [Deployment](docs/DEPLOYMENT.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security](SECURITY.md)

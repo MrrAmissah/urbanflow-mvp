@@ -1,0 +1,77 @@
+# Deployment
+
+## Production URL
+
+```txt
+https://urbanflow-mvp.vercel.app
+```
+
+## Deploying
+
+From the project root:
+
+```bash
+npm run lint
+npm run build
+vercel --prod
+```
+
+## Vercel Project
+
+This local project is linked to the Vercel project:
+
+```txt
+urbanflow-mvp
+```
+
+The local `.vercel/` folder is intentionally ignored by git.
+
+## Static Assets
+
+Model files are served from:
+
+```txt
+/model/model.json
+/model/metadata.json
+/model/weights.bin
+```
+
+The social preview image is served from:
+
+```txt
+/social-preview.png
+```
+
+## Cache Headers
+
+`next.config.ts` sets long-lived cache headers for model files:
+
+```txt
+Cache-Control: public, max-age=31536000, immutable
+```
+
+This helps repeat visits load the model faster.
+
+## Share Preview
+
+The home page includes Open Graph and Twitter card metadata:
+
+```txt
+og:image -> https://urbanflow-mvp.vercel.app/social-preview.png
+twitter:card -> summary_large_image
+```
+
+Messaging apps may cache link previews. If an old preview image appears, test in a new chat or wait for the platform cache to refresh.
+
+## Environment Variables
+
+The current MVP does not require environment variables.
+
+If storage is added later, create `.env.local` locally and configure matching variables in Vercel.
+
+Suggested future variables:
+
+```txt
+BLOB_READ_WRITE_TOKEN=
+DATABASE_URL=
+```
