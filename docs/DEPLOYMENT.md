@@ -65,13 +65,14 @@ Messaging apps may cache link previews. If an old preview image appears, test in
 
 ## Environment Variables
 
-The current MVP does not require environment variables.
-
-If storage is added later, create `.env.local` locally and configure matching variables in Vercel.
-
-Suggested future variables:
+The app can run without Supabase env vars, but persistence requires:
 
 ```txt
-BLOB_READ_WRITE_TOKEN=
-DATABASE_URL=
+NEXT_PUBLIC_SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_INSPECTION_BUCKET=inspection-images
 ```
+
+Add these locally in `.env.local` and in Vercel Project Settings.
+
+See [SUPABASE.md](SUPABASE.md) for table and storage setup.

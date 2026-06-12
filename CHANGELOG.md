@@ -12,3 +12,4 @@
 - Added social preview image.
 - Added long-lived model asset caching.
 - Added project documentation for GitHub readiness.
+- Added Supabase-ready API routes and setup guide for persisted inspections.

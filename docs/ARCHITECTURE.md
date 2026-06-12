@@ -36,11 +36,17 @@ next.config.ts
 
 ## Current Data Model
 
-The MVP currently stores inspection review items in React state only:
+The MVP supports two queue modes:
+
+- Supabase mode: flagged inspections are saved through API routes and loaded on page open.
+- Local-only mode: if Supabase is not configured, flagged inspections stay in browser state only.
+
+The UI uses this review item shape:
 
 ```ts
 type ReviewItem = {
   id: string
+  imageUrl?: string | null
   fileName: string
   verdict: Verdict
   label: string
@@ -50,7 +56,7 @@ type ReviewItem = {
 }
 ```
 
-This means the queue resets on page refresh. That is intentional for the current prototype.
+In Supabase mode, records live in `inspection_records`. In local-only mode, the queue resets on page refresh.
 
 ## Model Loading Strategy
 
@@ -72,19 +78,19 @@ Before trusting a prediction, the app samples image pixels in a small canvas and
 
 Hard quality issues push the result toward manual review.
 
-## Future Persistence Architecture
+## Persistence Architecture
 
-Recommended production-style shape:
+Current implementation:
 
 ```txt
-Vercel Blob
-  Stores uploaded inspection images.
+Supabase Storage
+  Stores flagged inspection images.
 
-Neon Postgres or Upstash Redis
+Supabase Postgres
   Stores inspection records, statuses, reviewer corrections, timestamps, and image URLs.
 
-Admin dashboard
-  Lists records, filters statuses, and exports corrected examples for model retraining.
+Next.js API routes
+  Keep the Supabase service role key on the server.
 ```
 
-Blob should store files. A database should store searchable inspection records.
+See [SUPABASE.md](SUPABASE.md) for setup details.

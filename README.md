@@ -16,6 +16,7 @@ The current MVP focuses on fast validation:
 - Display confidence scores and class probabilities
 - Check image quality before trusting the result
 - Route flagged cases into an inspection review queue
+- Persist flagged inspections with Supabase when configured
 - Provide Open Graph preview metadata for link sharing
 
 ## Tech Stack
@@ -28,6 +29,7 @@ The current MVP focuses on fast validation:
 - `@teachablemachine/image`
 - Lucide React icons
 - Vercel hosting
+- Supabase for optional inspection persistence
 
 ## Quick Start
 
@@ -61,10 +63,15 @@ urbanflow-mvp/
 │   ├── ARCHITECTURE.md
 │   ├── DEPLOYMENT.md
 │   ├── MODEL.md
-│   └── ROADMAP.md
+│   ├── ROADMAP.md
+│   └── SUPABASE.md
+├── lib/
+│   ├── inspections/
+│   └── supabase/
 ├── pages/
 │   ├── _app.tsx
 │   ├── _document.tsx
+│   ├── api/
 │   └── index.tsx
 ├── public/
 │   ├── model/
@@ -103,7 +110,7 @@ See [docs/MODEL.md](docs/MODEL.md) for model training, export, and class-naming 
 6. App displays a verdict and probabilities.
 7. Only flagged cases are added to the review queue.
 
-The review queue is currently browser-only state. It is useful for demonstrating workflow behavior, but it does not persist across refreshes yet.
+If Supabase is configured, flagged inspections are saved and loaded through the API routes. If Supabase is not configured yet, the app gracefully falls back to a browser-only review queue.
 
 ## Deployment
 
@@ -124,6 +131,7 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for deployment notes, model caching
 ## Important Notes
 
 - The model runs in the browser, so uploaded images are not sent to a backend in the current MVP.
+- Flagged images are sent to Supabase only after Supabase environment variables and tables are configured.
 - TensorFlow.js is lazy-loaded so the main page can render before the ML bundle is needed.
 - Model assets are cached with long-lived headers in `next.config.ts`.
 - The app is an MVP and should not be used as a final inspection authority without human review.
@@ -134,5 +142,6 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for deployment notes, model caching
 - [Model Guide](docs/MODEL.md)
 - [Deployment](docs/DEPLOYMENT.md)
 - [Roadmap](docs/ROADMAP.md)
+- [Supabase Setup](docs/SUPABASE.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security](SECURITY.md)

@@ -10,11 +10,12 @@
 - Route flagged cases into a browser-only review queue
 - Provide share preview metadata
 - Deploy on Vercel
+- Supabase-ready API routes for persisted flagged inspections
 
 ## Near-Term Improvements
 
-- Persist uploaded images with Vercel Blob
-- Persist inspection records with Neon Postgres or Upstash Redis
+- Persist uploaded images with Supabase Storage
+- Persist inspection records with Supabase Postgres
 - Add an admin/reviewer page
 - Add inspection history filters
 - Add exportable CSV/PDF reports
@@ -40,8 +41,8 @@ Phase 1
   Browser-only prototype
 
 Phase 2
-  Vercel Blob for images
-  Small database for inspection records
+  Supabase Storage for images
+  Supabase Postgres for inspection records
 
 Phase 3
   Admin dashboard, reports, and reviewer workflow

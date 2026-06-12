@@ -14,6 +14,11 @@ import {
   SlidersHorizontal,
   XCircle,
 } from 'lucide-react';
+import type {
+  CreateInspectionPayload,
+  InspectionRecord,
+  InspectionStatus,
+} from '@/lib/inspections/types';
 
 interface Prediction {
   className: string;
@@ -30,6 +35,7 @@ interface QualityReport {
 
 interface ReviewItem {
   id: string;
+  imageUrl?: string | null;
   fileName: string;
   verdict: Verdict;
   label: string;
@@ -131,6 +137,56 @@ function getCorrectedVerdict(correction: string, fallback: Verdict): Verdict {
   if (correction === 'Out of context') return 'out-of-context';
   if (correction === 'Choked gutter') return 'choked';
   return fallback;
+}
+
+function inspectionRecordToReviewItem(record: InspectionRecord): ReviewItem {
+  return {
+    id: record.id,
+    imageUrl: record.imageUrl,
+    fileName: record.fileName,
+    verdict: record.verdict,
+    label: record.label,
+    confidence: record.confidence,
+    status: record.status,
+    correction: record.correction ?? undefined,
+  };
+}
+
+async function createInspectionRecord(payload: CreateInspectionPayload) {
+  const response = await fetch('/api/inspections', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (response.status === 503) return null;
+  if (!response.ok) throw new Error('Could not save inspection record.');
+
+  const data = (await response.json()) as { record?: InspectionRecord };
+  return data.record ? inspectionRecordToReviewItem(data.record) : null;
+}
+
+async function updateInspectionRecord(
+  id: string,
+  status: InspectionStatus,
+  correction: string,
+  verdict: Verdict
+) {
+  const response = await fetch(`/api/inspections/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ status, correction, verdict }),
+  });
+
+  if (response.status === 503) return null;
+  if (!response.ok) throw new Error('Could not update inspection record.');
+
+  const data = (await response.json()) as { record?: InspectionRecord };
+  return data.record ? inspectionRecordToReviewItem(data.record) : null;
 }
 
 function mapPredictionToVerdict(
@@ -260,6 +316,7 @@ export default function GutterClassifier() {
   const [threshold, setThreshold] = useState(70);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [persistenceStatus, setPersistenceStatus] = useState<'checking' | 'connected' | 'local-only'>('checking');
 
   const imageRef = useRef<HTMLImageElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -304,6 +361,37 @@ export default function GutterClassifier() {
     };
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPersistedQueue = async () => {
+      try {
+        const response = await fetch('/api/inspections');
+        if (response.status === 503) {
+          if (isMounted) setPersistenceStatus('local-only');
+          return;
+        }
+
+        if (!response.ok) throw new Error('Could not load inspections.');
+
+        const data = (await response.json()) as { records?: InspectionRecord[] };
+        if (!isMounted) return;
+
+        setPersistenceStatus('connected');
+        setReviewQueue((data.records ?? []).map(inspectionRecordToReviewItem));
+      } catch (error) {
+        console.warn('Supabase inspection queue unavailable:', error);
+        if (isMounted) setPersistenceStatus('local-only');
+      }
+    };
+
+    loadPersistedQueue();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const topPrediction = predictions?.[0];
   const verdict = mapPredictionToVerdict(topPrediction, qualityReport, threshold);
   const verdictInfo = verdictContent[verdict];
@@ -317,6 +405,14 @@ export default function GutterClassifier() {
     };
     reader.readAsDataURL(file);
   };
+
+  const readImageDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => resolve(event.target?.result as string);
+      reader.onerror = () => reject(new Error('Could not read image for storage.'));
+      reader.readAsDataURL(file);
+    });
 
   const selectFile = (file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -387,17 +483,40 @@ export default function GutterClassifier() {
       const nextConfidence = Math.round((top?.probability ?? 0) * 100);
 
       if (nextVerdict !== 'clean') {
-        setReviewQueue((items) => [
-          {
-            id: crypto.randomUUID(),
+        const localItem: ReviewItem = {
+          id: crypto.randomUUID(),
+          fileName: selectedFile.name,
+          verdict: nextVerdict,
+          label: top?.className ?? 'No prediction',
+          confidence: nextConfidence,
+          status: 'Needs review',
+        };
+
+        setReviewQueue((items) => [localItem, ...items.slice(0, 24)]);
+
+        try {
+          const savedItem = await createInspectionRecord({
+            imageDataUrl: await readImageDataUrl(selectedFile),
             fileName: selectedFile.name,
             verdict: nextVerdict,
             label: top?.className ?? 'No prediction',
             confidence: nextConfidence,
             status: 'Needs review',
-          },
-          ...items.slice(0, 5),
-        ]);
+            quality: { ...quality },
+          });
+
+          if (savedItem) {
+            setPersistenceStatus('connected');
+            setReviewQueue((items) =>
+              items.map((item) => (item.id === localItem.id ? savedItem : item))
+            );
+          } else {
+            setPersistenceStatus('local-only');
+          }
+        } catch (error) {
+          console.warn('Inspection record was not persisted:', error);
+          setPersistenceStatus('local-only');
+        }
       }
     } catch (error) {
       console.error('Error analyzing image:', error);
@@ -416,19 +535,36 @@ export default function GutterClassifier() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const updateReviewItem = (id: string, correction: string) => {
+  const updateReviewItem = async (id: string, correction: string) => {
+    const nextStatus = correction === 'Approved' ? 'Approved' : 'Corrected';
+    const currentItem = reviewQueue.find((item) => item.id === id);
+    const nextVerdict = getCorrectedVerdict(correction, currentItem?.verdict ?? 'manual-review');
+
     setReviewQueue((items) =>
       items.map((item) =>
         item.id === id
           ? {
               ...item,
-              verdict: getCorrectedVerdict(correction, item.verdict),
-              status: correction === 'Approved' ? 'Approved' : 'Corrected',
+              verdict: nextVerdict,
+              status: nextStatus,
               correction,
             }
           : item
       )
     );
+
+    try {
+      const savedItem = await updateInspectionRecord(id, nextStatus, correction, nextVerdict);
+      if (savedItem) {
+        setPersistenceStatus('connected');
+        setReviewQueue((items) =>
+          items.map((item) => (item.id === id ? savedItem : item))
+        );
+      }
+    } catch (error) {
+      console.warn('Inspection update was not persisted:', error);
+      setPersistenceStatus('local-only');
+    }
   };
 
   return (
@@ -694,6 +830,13 @@ export default function GutterClassifier() {
           <div>
             <h3 className="text-lg font-semibold text-slate-900">Inspection Review Queue</h3>
             <p className="text-sm text-slate-500">{needsReviewCount} image(s) currently need review</p>
+            <p className="mt-1 text-xs text-slate-500">
+              {persistenceStatus === 'checking'
+                ? 'Checking saved inspections...'
+                : persistenceStatus === 'connected'
+                  ? 'Supabase persistence connected.'
+                  : 'Local-only queue until Supabase env vars and tables are ready.'}
+            </p>
           </div>
           <div className="grid grid-cols-3 rounded-lg border border-slate-200 overflow-hidden text-center text-sm">
             <div className="px-3 py-2">
