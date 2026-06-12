@@ -25,6 +25,9 @@ export default function Home() {
         <meta name="twitter:title" content={title} />
         <meta name="twitter:description" content={description} />
         <meta name="twitter:image" content={previewImage} />
+        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+        <link rel="shortcut icon" href="/favicon.ico" />
+        <link rel="apple-touch-icon" href="/apple-icon.png" />
         <link rel="preload" href="/model/model.json" as="fetch" crossOrigin="anonymous" />
         <link rel="preload" href="/model/metadata.json" as="fetch" crossOrigin="anonymous" />
         <link rel="preload" href="/model/weights.bin" as="fetch" crossOrigin="anonymous" />

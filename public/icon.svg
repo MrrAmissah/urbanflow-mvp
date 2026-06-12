@@ -1,0 +1,19 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="channel" x1="12" y1="10" x2="54" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0EA5E9"/>
+      <stop offset="0.58" stop-color="#0891B2"/>
+      <stop offset="1" stop-color="#10B981"/>
+    </linearGradient>
+    <linearGradient id="water" x1="18" y1="18" x2="48" y2="46" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#67E8F9"/>
+      <stop offset="1" stop-color="#22C55E"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="18" fill="#F8FAFC"/>
+  <path d="M18 13v24c0 13.3 9.4 21 21 21s21-7.7 21-21V13" fill="none" stroke="url(#channel)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M27 18v19c0 6.8 4.9 10.5 12 10.5S51 43.8 51 37V18" fill="none" stroke="#E0F2FE" stroke-width="5" stroke-linecap="round"/>
+  <path d="M25 36c5.2-3.4 10.2-3.4 15 0s9.8 3.4 15 0" fill="none" stroke="url(#water)" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="m39 24 4.2 4.2L52 19.5" fill="none" stroke="#16A34A" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M11 24h8M45 9h8M48 52h7" stroke="#38BDF8" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
+</svg>
