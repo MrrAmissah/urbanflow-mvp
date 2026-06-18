@@ -25,6 +25,7 @@ import {
   ShieldAlert,
   SlidersHorizontal,
   Sparkles,
+  Trash2,
   UploadCloud,
   XCircle,
 } from 'lucide-react';
@@ -276,6 +277,20 @@ async function updateInspectionRecord(
 
   const data = (await response.json()) as { record?: InspectionRecord };
   return data.record ?? null;
+}
+
+async function deleteInspectionRecord(id: string) {
+  const response = await fetch(`/api/inspections/${id}`, {
+    method: 'DELETE',
+  });
+
+  if (response.status === 503) return false;
+  if (!response.ok) {
+    const data = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(data?.message || 'Could not delete inspection record.');
+  }
+
+  return true;
 }
 
 function mapPredictionToVerdict(
@@ -975,6 +990,25 @@ export default function GutterClassifier() {
       console.warn('Inspection update was not persisted:', error);
       setSaveError(error instanceof Error ? error.message : 'Could not save reviewer correction.');
       setPersistenceStatus('local-only');
+    }
+  };
+
+  const handleDeleteRecord = async (record: InspectionRecord) => {
+    const confirmed = window.confirm(`Delete "${record.fileName}" from inspection records and storage?`);
+    if (!confirmed) return;
+
+    setRecords((items) => items.filter((item) => item.id !== record.id));
+
+    try {
+      const deleted = await deleteInspectionRecord(record.id);
+      if (deleted) {
+        setPersistenceStatus('connected');
+      }
+    } catch (error) {
+      console.warn('Inspection delete was not persisted:', error);
+      setSaveError(error instanceof Error ? error.message : 'Could not delete inspection record.');
+      setPersistenceStatus('local-only');
+      void refreshRecords();
     }
   };
 
@@ -1786,12 +1820,13 @@ export default function GutterClassifier() {
                 <th className="py-3 pr-4 font-semibold">Confidence</th>
                 <th className="py-3 pr-4 font-semibold">Status</th>
                 <th className="py-3 pr-4 font-semibold">Correction</th>
+                <th className="py-3 pr-4 font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-6 text-center text-slate-500">
+                  <td colSpan={7} className="py-6 text-center text-slate-500">
                     No inspection records match this filter.
                   </td>
                 </tr>
@@ -1815,6 +1850,16 @@ export default function GutterClassifier() {
                       <td className="py-3 pr-4 font-mono text-slate-900">{record.confidence}%</td>
                       <td className="py-3 pr-4 text-slate-700">{record.status}</td>
                       <td className="py-3 pr-4 text-slate-500">{record.correction ?? '-'}</td>
+                      <td className="py-3 pr-4">
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteRecord(record)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-50"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Delete
+                        </button>
+                      </td>
                     </tr>
                   );
                 })
