@@ -180,11 +180,13 @@ Create `.env.local` for local Supabase persistence:
 NEXT_PUBLIC_SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
 SUPABASE_INSPECTION_BUCKET=inspection-images
+ADMIN_DELETE_TOKEN=
 ```
 
 Notes:
 
 - `SUPABASE_SERVICE_ROLE_KEY` must stay server-side.
+- `ADMIN_DELETE_TOKEN` is required for deleting inspection records from the dashboard.
 - Do not expose service keys with a `NEXT_PUBLIC_` prefix.
 - The app can still run in local-only mode when Supabase is not configured.
 

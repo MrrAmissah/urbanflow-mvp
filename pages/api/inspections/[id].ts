@@ -4,6 +4,11 @@ import { toInspectionRecord } from '@/lib/inspections/mappers';
 import type { UpdateInspectionPayload } from '@/lib/inspections/types';
 
 const BUCKET_NAME = process.env.SUPABASE_INSPECTION_BUCKET ?? 'inspection-images';
+const ADMIN_DELETE_TOKEN = process.env.ADMIN_DELETE_TOKEN;
+
+function getHeaderValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
 
 function getStoragePathFromPublicUrl(imageUrl: string | null) {
   if (!imageUrl) return null;
@@ -41,6 +46,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const supabase = getSupabaseAdmin();
 
     if (req.method === 'DELETE') {
+      if (!ADMIN_DELETE_TOKEN) {
+        return res.status(503).json({ message: 'Delete protection is not configured.' });
+      }
+
+      const deleteToken = getHeaderValue(req.headers['x-admin-delete-token']);
+      if (deleteToken !== ADMIN_DELETE_TOKEN) {
+        return res.status(403).json({ message: 'Invalid admin delete code.' });
+      }
+
       const { data: record, error: recordError } = await supabase
         .from('inspection_records')
         .select('image_url')
@@ -86,9 +100,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       record: toInspectionRecord(data),
     });
   } catch (error) {
-    console.error('Inspection update API error:', error);
+    console.error('Inspection mutation API error:', error);
     return res.status(500).json({
-      message: error instanceof Error ? error.message : 'Inspection update failed.',
+      message: error instanceof Error ? error.message : 'Inspection mutation failed.',
     });
   }
 }

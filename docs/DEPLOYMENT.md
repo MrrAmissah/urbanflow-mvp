@@ -71,8 +71,11 @@ The app can run without Supabase env vars, but persistence requires:
 NEXT_PUBLIC_SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
 SUPABASE_INSPECTION_BUCKET=inspection-images
+ADMIN_DELETE_TOKEN=
 ```
 
 Add these locally in `.env.local` and in Vercel Project Settings.
+
+`ADMIN_DELETE_TOKEN` protects the destructive inspection-record delete action. Keep it server-side only.
 
 See [SUPABASE.md](SUPABASE.md) for table and storage setup.
