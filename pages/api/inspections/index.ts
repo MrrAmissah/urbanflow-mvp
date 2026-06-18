@@ -13,6 +13,7 @@ export const config = {
 };
 
 const BUCKET_NAME = process.env.SUPABASE_INSPECTION_BUCKET ?? 'inspection-images';
+let bucketReadyPromise: Promise<void> | null = null;
 
 function parseDataUrl(dataUrl: string) {
   const match = dataUrl.match(/^data:(.+);base64,(.+)$/);
@@ -31,6 +32,9 @@ async function uploadInspectionImage(payload: CreateInspectionPayload) {
   if (!parsed) return null;
 
   const supabase = getSupabaseAdmin();
+  bucketReadyPromise ??= ensureInspectionBucket();
+  await bucketReadyPromise;
+
   const extension = parsed.mimeType.split('/')[1] || 'jpg';
   const safeName = payload.fileName.replace(/[^a-zA-Z0-9._-]/g, '-');
   const path = `inspections/${new Date().toISOString().slice(0, 10)}/${randomUUID()}-${safeName || `image.${extension}`}`;
@@ -44,6 +48,39 @@ async function uploadInspectionImage(payload: CreateInspectionPayload) {
 
   const { data } = supabase.storage.from(BUCKET_NAME).getPublicUrl(path);
   return data.publicUrl;
+}
+
+async function ensureInspectionBucket() {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase.storage.getBucket(BUCKET_NAME);
+
+  if (error) {
+    const message = error.message.toLowerCase();
+
+    if (message.includes('not found') || message.includes('does not exist')) {
+      const { error: createError } = await supabase.storage.createBucket(BUCKET_NAME, {
+        public: true,
+        allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+      });
+
+      if (createError && !createError.message.toLowerCase().includes('already exists')) {
+        throw createError;
+      }
+
+      return;
+    }
+
+    throw error;
+  }
+
+  if (!data.public) {
+    const { error: updateError } = await supabase.storage.updateBucket(BUCKET_NAME, {
+      public: true,
+      allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+    });
+
+    if (updateError) throw updateError;
+  }
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
